@@ -1,0 +1,18 @@
+spring:
+  application:
+    name: appsisben-backend
+  profiles:
+    active: dev
+
+server:
+  port: 6095
+
+app:
+  security:
+    jwt:
+      secret: "AppSisbenValleduparSecretKeyLocalDevelopment2026"
+      expiration-minutes: 480
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
