@@ -1,6 +1,8 @@
 package com.appsisben.backend.modules.ventanilla.repository;
 
 import com.appsisben.backend.modules.reports.dto.ReportGroupResponse;
+import com.appsisben.backend.modules.reports.dto.VentanillaDailyTrendResponse;
+import com.appsisben.backend.modules.reports.dto.VentanillaFuncionarioTrendResponse;
 import com.appsisben.backend.modules.reports.dto.VentanillaSolicitudDailyCount;
 import com.appsisben.backend.modules.ventanilla.domain.VentanillaRegistro;
 import com.appsisben.backend.modules.ventanilla.dto.VentanillaUserHistorySummaryResponse;
@@ -404,5 +406,40 @@ public interface VentanillaRegistroRepository extends JpaRepository<VentanillaRe
             """)
     List<VentanillaRegistro> findActiveTraceabilityByCedula(
             @Param("cedulaUsuario") String cedulaUsuario
+    );
+
+    @Query("""
+        select new com.appsisben.backend.modules.reports.dto.VentanillaDailyTrendResponse(
+            v.fecha,
+            count(v)
+        )
+        from VentanillaRegistro v
+        where v.activo = true
+          and (:fechaInicio is null or v.fecha >= :fechaInicio)
+          and (:fechaFin is null or v.fecha <= :fechaFin)
+        group by v.fecha
+        order by v.fecha asc
+        """)
+    List<VentanillaDailyTrendResponse> countDailyTrend(
+            @Param("fechaInicio") LocalDate fechaInicio,
+            @Param("fechaFin") LocalDate fechaFin
+    );
+
+    @Query("""
+        select new com.appsisben.backend.modules.reports.dto.VentanillaFuncionarioTrendResponse(
+            v.fecha,
+            coalesce(v.funcionario.username, 'Sin funcionario'),
+            count(v)
+        )
+        from VentanillaRegistro v
+        where v.activo = true
+          and (:fechaInicio is null or v.fecha >= :fechaInicio)
+          and (:fechaFin is null or v.fecha <= :fechaFin)
+        group by v.fecha, v.funcionario.username
+        order by v.fecha asc, v.funcionario.username asc
+        """)
+    List<VentanillaFuncionarioTrendResponse> countFuncionarioTrend(
+            @Param("fechaInicio") LocalDate fechaInicio,
+            @Param("fechaFin") LocalDate fechaFin
     );
 }
