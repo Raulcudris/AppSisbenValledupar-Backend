@@ -22,6 +22,8 @@ public record VentanillaUserHistoryItemResponse(
         String solicitudNombre,
         Long estadoSolicitudId,
         String estadoSolicitudNombre,
-        String observacion
+        String observacion,
+        String motivoRepeticion,
+        Boolean activo
 ) {
 }

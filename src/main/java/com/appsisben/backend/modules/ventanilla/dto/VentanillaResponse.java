@@ -23,6 +23,7 @@ public record VentanillaResponse(
         Long estadoSolicitudId,
         String estadoSolicitudNombre,
         String observacion,
+        String motivoRepeticion,
         Boolean activo,
         VentanillaTraceabilityBadgeResponse trazabilidad
 ) {

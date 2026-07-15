@@ -13,24 +13,21 @@ import com.appsisben.backend.modules.territory.repository.BarrioRepository;
 import com.appsisben.backend.modules.users.domain.User;
 import com.appsisben.backend.modules.users.repository.UserRepository;
 import com.appsisben.backend.modules.ventanilla.domain.VentanillaRegistro;
-import com.appsisben.backend.modules.ventanilla.dto.*;
+import com.appsisben.backend.modules.ventanilla.dto.VentanillaCitizenHistoryResponse;
+import com.appsisben.backend.modules.ventanilla.dto.VentanillaDailyRequestItemResponse;
+import com.appsisben.backend.modules.ventanilla.dto.VentanillaDailyValidationResponse;
+import com.appsisben.backend.modules.ventanilla.dto.VentanillaFilterRequest;
+import com.appsisben.backend.modules.ventanilla.dto.VentanillaRequest;
+import com.appsisben.backend.modules.ventanilla.dto.VentanillaResponse;
+import com.appsisben.backend.modules.ventanilla.dto.VentanillaTraceabilityBadgeResponse;
+import com.appsisben.backend.modules.ventanilla.dto.VentanillaUserHistoryItemResponse;
+import com.appsisben.backend.modules.ventanilla.dto.VentanillaUserHistoryResponse;
+import com.appsisben.backend.modules.ventanilla.dto.VentanillaUserHistorySummaryResponse;
 import com.appsisben.backend.modules.ventanilla.repository.VentanillaRegistroRepository;
 import com.appsisben.backend.modules.ventanilla.repository.VentanillaSpecification;
 import com.appsisben.backend.shared.api.PageResponse;
 import com.appsisben.backend.shared.exception.BusinessException;
 import com.appsisben.backend.shared.exception.ResourceNotFoundException;
-
-import com.lowagie.text.pdf.PdfPCell;
-import com.lowagie.text.pdf.PdfPTable;
-import com.lowagie.text.pdf.PdfWriter;
-import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import com.lowagie.text.Document;
 import com.lowagie.text.DocumentException;
 import com.lowagie.text.Element;
@@ -40,6 +37,20 @@ import com.lowagie.text.PageSize;
 import com.lowagie.text.Paragraph;
 import com.lowagie.text.Phrase;
 import com.lowagie.text.Rectangle;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
+import com.lowagie.text.pdf.PdfWriter;
+import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -56,6 +67,8 @@ import java.util.Map;
 public class VentanillaService {
 
     private static final String TABLE_NAME = "ventanilla_registro";
+    private static final Logger log = LoggerFactory.getLogger(VentanillaService.class);
+    private static final DateTimeFormatter PDF_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final VentanillaRegistroRepository repository;
     private final UserRepository userRepository;
@@ -71,7 +84,10 @@ public class VentanillaService {
                 ? repository.findAll(pageable)
                 : repository.findAll(VentanillaSpecification.activeOnly(), pageable);
 
-        List<VentanillaResponse> content = page.getContent().stream().map(this::toResponse).toList();
+        List<VentanillaResponse> content = page.getContent()
+                .stream()
+                .map(this::toResponse)
+                .toList();
 
         return PageResponse.from(page, content);
     }
@@ -87,7 +103,10 @@ public class VentanillaService {
                 pageable
         );
 
-        List<VentanillaResponse> content = page.getContent().stream().map(this::toResponse).toList();
+        List<VentanillaResponse> content = page.getContent()
+                .stream()
+                .map(this::toResponse)
+                .toList();
 
         return PageResponse.from(page, content);
     }
@@ -104,9 +123,7 @@ public class VentanillaService {
             String search,
             Pageable pageable
     ) {
-        String normalizedSearch = search == null || search.trim().isEmpty()
-                ? null
-                : search.trim();
+        String normalizedSearch = isBlank(search) ? null : search.trim();
 
         Page<VentanillaUserHistorySummaryResponse> page = repository.findUserHistorySummaries(
                 normalizedSearch,
@@ -118,13 +135,13 @@ public class VentanillaService {
 
     @Transactional(readOnly = true)
     public VentanillaUserHistoryResponse findUserHistory(String cedulaUsuario) {
-        if (cedulaUsuario == null || cedulaUsuario.trim().isEmpty()) {
+        if (isBlank(cedulaUsuario)) {
             throw new BusinessException("La cédula del ciudadano es obligatoria");
         }
 
         String cedula = cedulaUsuario.trim();
 
-        List<VentanillaRegistro> records = repository.findActiveTraceabilityByCedula(cedula);
+        List<VentanillaRegistro> records = repository.findTraceabilityByCedula(cedula);
 
         if (records.isEmpty()) {
             return new VentanillaUserHistoryResponse(
@@ -194,7 +211,7 @@ public class VentanillaService {
         StringBuilder csv = new StringBuilder();
 
         csv.append('\uFEFF');
-        csv.append("Fecha,N° Ventanilla,Cédula,Nombre usuario,Teléfono,Solicitud,Categoría,Estado solicitud,Barrio,Comuna,Funcionario,Extranjero,Observación\n");
+        csv.append("Fecha,N° Ventanilla,Cédula,Nombre usuario,Teléfono,Solicitud,Categoría,Estado solicitud,Barrio,Comuna,Funcionario,Extranjero,Estado registro,Motivo repetición,Observación\n");
 
         for (VentanillaUserHistoryItemResponse item : history.solicitudes()) {
             csv.append(csvValue(item.fecha()))
@@ -221,6 +238,10 @@ public class VentanillaService {
                     .append(',')
                     .append(csvValue(Boolean.TRUE.equals(item.extranjero()) ? "Sí" : "No"))
                     .append(',')
+                    .append(csvValue(Boolean.TRUE.equals(item.activo()) ? "Activo" : "Inactivo"))
+                    .append(',')
+                    .append(csvValue(item.motivoRepeticion()))
+                    .append(',')
                     .append(csvValue(item.observacion()))
                     .append('\n');
         }
@@ -232,10 +253,12 @@ public class VentanillaService {
     public byte[] exportUserHistoryPdf(String cedulaUsuario) {
         VentanillaUserHistoryResponse history = findUserHistory(cedulaUsuario);
 
+        Document document = null;
+
         try {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
-            Document document = new Document(PageSize.A4.rotate(), 28, 28, 26, 28);
+            document = new Document(PageSize.A4.rotate(), 28, 28, 26, 28);
             PdfWriter.getInstance(document, outputStream);
 
             document.open();
@@ -248,11 +271,19 @@ public class VentanillaService {
             document.close();
 
             return outputStream.toByteArray();
-        } catch (DocumentException ex) {
-            throw new BusinessException("No fue posible generar el PDF del historial del usuario");
+        } catch (Exception ex) {
+            log.error("Error generando PDF de historial de usuario. Cedula={}", cedulaUsuario, ex);
+
+            if (document != null && document.isOpen()) {
+                document.close();
+            }
+
+            throw new BusinessException(
+                    "No fue posible generar el PDF del historial del usuario. Detalle técnico: "
+                            + ex.getMessage()
+            );
         }
     }
-
 
     @Transactional(readOnly = true)
     public VentanillaDailyValidationResponse validateBeforeSave(
@@ -265,7 +296,7 @@ public class VentanillaService {
             throw new BusinessException("La fecha es obligatoria");
         }
 
-        if (cedulaUsuario == null || cedulaUsuario.trim().isEmpty()) {
+        if (isBlank(cedulaUsuario)) {
             throw new BusinessException("La cédula del ciudadano es obligatoria");
         }
 
@@ -275,11 +306,9 @@ public class VentanillaService {
 
         String cedula = cedulaUsuario.trim();
 
-        List<VentanillaRegistro> dailyRequests = repository.findActiveDailyRequestsByCedula(
-                fecha,
-                cedula,
-                currentId
-        );
+        List<VentanillaRegistro> dailyRequests = currentId == null
+                ? repository.findDailyRequestsByCedula(fecha, cedula)
+                : repository.findDailyRequestsByCedulaAndIdNot(fecha, cedula, currentId);
 
         List<VentanillaDailyRequestItemResponse> items = dailyRequests
                 .stream()
@@ -295,10 +324,10 @@ public class VentanillaService {
         if (duplicated) {
             return new VentanillaDailyValidationResponse(
                     "SOLICITUD_DUPLICADA_MISMA_FECHA",
-                    "Solicitud duplicada",
-                    "Este ciudadano ya tiene registrada esta misma solicitud para la fecha seleccionada. No se puede repetir la misma solicitud el mismo día.",
-                    false,
-                    false,
+                    "Solicitud repetida el mismo día",
+                    "Este ciudadano ya tiene registrada esta misma solicitud para la fecha seleccionada. Para guardarla nuevamente debes registrar el motivo.",
+                    true,
+                    true,
                     (long) dailyRequests.size(),
                     items
             );
@@ -308,7 +337,7 @@ public class VentanillaService {
             return new VentanillaDailyValidationResponse(
                     "SOLICITUD_DIFERENTE_MISMA_FECHA",
                     "El ciudadano ya tiene solicitudes registradas hoy",
-                    "Este ciudadano ya tiene una solicitud diferente registrada para la fecha seleccionada. Confirma si deseas registrar una nueva solicitud para esta misma visita.",
+                    "Este ciudadano ya tiene solicitudes registradas para la fecha seleccionada. Para guardar una nueva solicitud debes registrar el motivo.",
                     true,
                     true,
                     (long) dailyRequests.size(),
@@ -329,13 +358,13 @@ public class VentanillaService {
 
     @Transactional(readOnly = true)
     public VentanillaCitizenHistoryResponse findCitizenHistory(String cedulaUsuario) {
-        if (cedulaUsuario == null || cedulaUsuario.trim().isEmpty()) {
+        if (isBlank(cedulaUsuario)) {
             throw new BusinessException("La cédula del ciudadano es obligatoria");
         }
 
         String cedula = cedulaUsuario.trim();
 
-        List<VentanillaRegistro> records = repository.findActiveTraceabilityByCedula(cedula);
+        List<VentanillaRegistro> records = repository.findTraceabilityByCedula(cedula);
 
         if (records.isEmpty()) {
             return new VentanillaCitizenHistoryResponse(
@@ -484,14 +513,15 @@ public class VentanillaService {
         VentanillaRegistro entity = findEntity(id);
         Map<String, Object> before = snapshot(entity);
 
-        repository.delete(entity);
+        entity.setActivo(false);
+        entity.setEditadoPor(currentUser());
 
         auditService.safeLog(
-                AuditAction.DELETE,
+                AuditAction.UPDATE,
                 TABLE_NAME,
-                id,
+                entity.getId(),
                 before,
-                null
+                snapshot(entity)
         );
     }
 
@@ -519,7 +549,7 @@ public class VentanillaService {
             throw new BusinessException("La fecha es obligatoria");
         }
 
-        if (request.cedulaUsuario() == null || request.cedulaUsuario().trim().isEmpty()) {
+        if (isBlank(request.cedulaUsuario())) {
             throw new BusinessException("La cédula del usuario es obligatoria");
         }
 
@@ -529,22 +559,13 @@ public class VentanillaService {
 
         String cedulaUsuario = request.cedulaUsuario().trim();
 
-        boolean duplicated = currentId == null
-                ? repository.existsActiveDailySolicitudByUser(
-                request.fecha(),
-                cedulaUsuario,
-                request.solicitudId()
-        )
-                : repository.existsActiveDailySolicitudByUserAndIdNot(
-                currentId,
-                request.fecha(),
-                cedulaUsuario,
-                request.solicitudId()
-        );
+        List<VentanillaRegistro> dailyRequests = currentId == null
+                ? repository.findDailyRequestsByCedula(request.fecha(), cedulaUsuario)
+                : repository.findDailyRequestsByCedulaAndIdNot(request.fecha(), cedulaUsuario, currentId);
 
-        if (duplicated) {
+        if (!dailyRequests.isEmpty() && isBlank(request.motivoRepeticion())) {
             throw new BusinessException(
-                    "Este ciudadano ya tiene registrada esta misma solicitud para la fecha seleccionada. Puedes registrar una solicitud diferente, pero no repetir la misma solicitud el mismo día."
+                    "Este ciudadano ya tiene solicitudes registradas para la fecha seleccionada. Para guardarla nuevamente debes registrar el motivo."
             );
         }
     }
@@ -566,20 +587,21 @@ public class VentanillaService {
         entity.setNumeroVentanilla(request.numeroVentanilla().trim());
         entity.setCedulaUsuario(request.cedulaUsuario().trim());
         entity.setNombreUsuario(request.nombreUsuario().trim().toUpperCase());
-        entity.setTelefono(request.telefono());
+        entity.setTelefono(normalizeOptionalText(request.telefono()));
         entity.setCategoria(categoria);
-        entity.setDireccion(request.direccion());
+        entity.setDireccion(normalizeOptionalText(request.direccion()));
         entity.setBarrio(barrio);
         entity.setExtranjero(request.extranjero() != null ? request.extranjero() : Boolean.FALSE);
         entity.setSolicitud(solicitud);
         entity.setEstadoSolicitud(estado);
-        entity.setObservacion(request.observacion());
+        entity.setObservacion(normalizeOptionalText(request.observacion()));
+        entity.setMotivoRepeticion(normalizeOptionalText(request.motivoRepeticion()));
     }
 
     private User currentUser() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
-        if (username == null || username.isBlank() || "anonymousUser".equals(username)) {
+        if (isBlank(username) || "anonymousUser".equals(username)) {
             throw new BusinessException("No hay usuario autenticado");
         }
 
@@ -601,6 +623,37 @@ public class VentanillaService {
             throw new BusinessException("Solo un administrador puede realizar esta acción");
         }
     }
+
+    private VentanillaResponse toResponse(VentanillaRegistro entity) {
+        return new VentanillaResponse(
+                entity.getId(),
+                entity.getFecha(),
+                entity.getNumeroVentanilla(),
+                entity.getFuncionario() != null ? entity.getFuncionario().getId() : null,
+                entity.getFuncionario() != null ? entity.getFuncionario().getUsername() : null,
+                entity.getCedulaUsuario(),
+                entity.getNombreUsuario(),
+                entity.getTelefono(),
+                entity.getCategoria() != null ? entity.getCategoria().getId() : null,
+                entity.getCategoria() != null ? entity.getCategoria().getNombre() : null,
+                entity.getDireccion(),
+                entity.getBarrio() != null ? entity.getBarrio().getId() : null,
+                entity.getBarrio() != null ? entity.getBarrio().getNombre() : null,
+                entity.getBarrio() != null && entity.getBarrio().getComuna() != null
+                        ? entity.getBarrio().getComuna().getNombre()
+                        : null,
+                entity.getExtranjero(),
+                entity.getSolicitud() != null ? entity.getSolicitud().getId() : null,
+                entity.getSolicitud() != null ? entity.getSolicitud().getNombre() : null,
+                entity.getEstadoSolicitud() != null ? entity.getEstadoSolicitud().getId() : null,
+                entity.getEstadoSolicitud() != null ? entity.getEstadoSolicitud().getNombre() : null,
+                entity.getObservacion(),
+                entity.getMotivoRepeticion(),
+                entity.getActivo(),
+                buildTraceabilityBadge(entity)
+        );
+    }
+
     private VentanillaDailyRequestItemResponse toDailyRequestItem(VentanillaRegistro entity) {
         return new VentanillaDailyRequestItemResponse(
                 entity.getId(),
@@ -624,36 +677,12 @@ public class VentanillaService {
                 entity.getSolicitud() != null ? entity.getSolicitud().getNombre() : null,
                 entity.getEstadoSolicitud() != null ? entity.getEstadoSolicitud().getId() : null,
                 entity.getEstadoSolicitud() != null ? entity.getEstadoSolicitud().getNombre() : null,
-                entity.getObservacion()
+                entity.getObservacion(),
+                entity.getMotivoRepeticion(),
+                entity.getActivo()
         );
     }
 
-    private VentanillaResponse toResponse(VentanillaRegistro entity) {
-        return new VentanillaResponse(
-                entity.getId(),
-                entity.getFecha(),
-                entity.getNumeroVentanilla(),
-                entity.getFuncionario().getId(),
-                entity.getFuncionario().getUsername(),
-                entity.getCedulaUsuario(),
-                entity.getNombreUsuario(),
-                entity.getTelefono(),
-                entity.getCategoria().getId(),
-                entity.getCategoria().getNombre(),
-                entity.getDireccion(),
-                entity.getBarrio().getId(),
-                entity.getBarrio().getNombre(),
-                entity.getBarrio().getComuna().getNombre(),
-                entity.getExtranjero(),
-                entity.getSolicitud().getId(),
-                entity.getSolicitud().getNombre(),
-                entity.getEstadoSolicitud().getId(),
-                entity.getEstadoSolicitud().getNombre(),
-                entity.getObservacion(),
-                entity.getActivo(),
-                buildTraceabilityBadge(entity)
-        );
-    }
     private VentanillaUserHistoryItemResponse toUserHistoryItem(VentanillaRegistro entity) {
         return new VentanillaUserHistoryItemResponse(
                 entity.getId(),
@@ -677,7 +706,9 @@ public class VentanillaService {
                 entity.getSolicitud() != null ? entity.getSolicitud().getNombre() : null,
                 entity.getEstadoSolicitud() != null ? entity.getEstadoSolicitud().getId() : null,
                 entity.getEstadoSolicitud() != null ? entity.getEstadoSolicitud().getNombre() : null,
-                entity.getObservacion()
+                entity.getObservacion(),
+                entity.getMotivoRepeticion(),
+                entity.getActivo()
         );
     }
 
@@ -694,14 +725,11 @@ public class VentanillaService {
         return "\"" + text + "\"";
     }
 
-
-
     private VentanillaTraceabilityBadgeResponse buildTraceabilityBadge(VentanillaRegistro entity) {
         if (entity == null
                 || entity.getId() == null
                 || entity.getFecha() == null
-                || entity.getCedulaUsuario() == null
-                || entity.getCedulaUsuario().trim().isEmpty()) {
+                || isBlank(entity.getCedulaUsuario())) {
             return new VentanillaTraceabilityBadgeResponse(
                     "NO_DISPONIBLE",
                     "Sin trazabilidad",
@@ -717,20 +745,20 @@ public class VentanillaService {
 
         String cedulaUsuario = entity.getCedulaUsuario().trim();
 
-        Long totalVisitas = safeLong(repository.countActiveVisitsByCedula(cedulaUsuario));
+        Long totalVisitas = safeLong(repository.countVisitsByCedula(cedulaUsuario));
 
         LocalDate fechaInicioVentana = entity.getFecha().minusDays(29);
         LocalDate fechaFinVentana = entity.getFecha();
 
         Long visitasUltimos30Dias = safeLong(
-                repository.countActiveVisitsByCedulaBetween(
+                repository.countVisitsByCedulaBetween(
                         cedulaUsuario,
                         fechaInicioVentana,
                         fechaFinVentana
                 )
         );
 
-        List<VentanillaRegistro> previousVisits = repository.findPreviousActiveVisitsByCedula(
+        List<VentanillaRegistro> previousVisits = repository.findPreviousVisitsByCedula(
                 cedulaUsuario,
                 entity.getFecha(),
                 entity.getId(),
@@ -837,6 +865,7 @@ public class VentanillaService {
         data.put("estadoSolicitudId", entity.getEstadoSolicitud() != null ? entity.getEstadoSolicitud().getId() : null);
         data.put("estadoSolicitudNombre", entity.getEstadoSolicitud() != null ? entity.getEstadoSolicitud().getNombre() : null);
         data.put("observacion", entity.getObservacion());
+        data.put("motivoRepeticion", entity.getMotivoRepeticion());
         data.put("activo", entity.getActivo());
 
         return data;
@@ -891,7 +920,7 @@ public class VentanillaService {
         addUserInfoCell(userTable, "Cédula", history.cedulaUsuario());
         addUserInfoCell(userTable, "Nombre", safeText(history.nombreUsuario()));
         addUserInfoCell(userTable, "Teléfono", safeText(history.telefono()));
-        addUserInfoCell(userTable, "Fecha de generación", formatPdfDate(java.time.LocalDate.now()));
+        addUserInfoCell(userTable, "Fecha de generación", formatPdfDate(LocalDate.now()));
 
         document.add(userTable);
     }
@@ -930,7 +959,7 @@ public class VentanillaService {
         if (history.solicitudes() == null || history.solicitudes().isEmpty()) {
             Font emptyFont = FontFactory.getFont(FontFactory.HELVETICA, 10, new Color(90, 90, 90));
             Paragraph empty = new Paragraph(
-                    "No se encontraron solicitudes activas registradas para este ciudadano.",
+                    "No se encontraron solicitudes registradas para este ciudadano.",
                     emptyFont
             );
 
@@ -938,7 +967,7 @@ public class VentanillaService {
             return;
         }
 
-        PdfPTable table = new PdfPTable(new float[]{9, 9, 18, 15, 13, 16, 13, 7, 24});
+        PdfPTable table = new PdfPTable(new float[]{8, 8, 15, 12, 11, 14, 11, 6, 9, 17, 20});
         table.setWidthPercentage(100);
         table.setHeaderRows(1);
 
@@ -950,6 +979,8 @@ public class VentanillaService {
         addHeaderCell(table, "Barrio / Comuna");
         addHeaderCell(table, "Funcionario");
         addHeaderCell(table, "Ext.");
+        addHeaderCell(table, "Registro");
+        addHeaderCell(table, "Motivo repetición");
         addHeaderCell(table, "Observación");
 
         for (VentanillaUserHistoryItemResponse item : history.solicitudes()) {
@@ -961,6 +992,8 @@ public class VentanillaService {
             addBodyCell(table, safeText(item.barrioNombre()) + " / " + safeText(item.comunaNombre()));
             addBodyCell(table, safeText(item.funcionarioUsername()));
             addBodyCell(table, Boolean.TRUE.equals(item.extranjero()) ? "Sí" : "No");
+            addBodyCell(table, Boolean.TRUE.equals(item.activo()) ? "Activo" : "Inactivo");
+            addBodyCell(table, safeText(item.motivoRepeticion()));
             addBodyCell(table, safeText(item.observacion()));
         }
 
@@ -971,7 +1004,7 @@ public class VentanillaService {
         Font footerFont = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 8, new Color(110, 110, 110));
 
         Paragraph footer = new Paragraph(
-                "Documento generado automáticamente por AppSisben. La información corresponde a registros activos del módulo de Ventanilla.",
+                "Documento generado automáticamente por AppSisben. La información corresponde a registros activos e inactivos del módulo de Ventanilla.",
                 footerFont
         );
 
@@ -1061,21 +1094,44 @@ public class VentanillaService {
         table.addCell(cell);
     }
 
+    private boolean isBlank(String value) {
+        return value == null || value.trim().isEmpty();
+    }
+
+    private String normalizeOptionalText(String value) {
+        if (isBlank(value)) {
+            return null;
+        }
+
+        return value.trim();
+    }
+
     private String safeText(Object value) {
         if (value == null) {
             return "-";
         }
 
-        String text = String.valueOf(value).trim();
+        String text = String.valueOf(value)
+                .replace("\r", " ")
+                .replace("\n", " ")
+                .trim();
 
-        return text.isEmpty() ? "-" : text;
+        if (text.isEmpty()) {
+            return "-";
+        }
+
+        if (text.length() > 180) {
+            return text.substring(0, 177) + "...";
+        }
+
+        return text;
     }
 
-    private String formatPdfDate(java.time.LocalDate date) {
+    private String formatPdfDate(LocalDate date) {
         if (date == null) {
             return "-";
         }
 
-        return date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+        return date.format(PDF_DATE_FORMATTER);
     }
 }

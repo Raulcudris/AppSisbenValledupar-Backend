@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+
 import java.time.LocalDate;
 import java.util.List;
 
@@ -191,50 +192,42 @@ public interface VentanillaRegistroRepository extends JpaRepository<VentanillaRe
     );
 
     @Query("""
-            select case when count(v) > 0 then true else false end
+            select count(v)
             from VentanillaRegistro v
-            where v.activo = true
-              and v.fecha = :fecha
-              and upper(v.cedulaUsuario) = upper(:cedulaUsuario)
-              and v.solicitud.id = :solicitudId
+            where upper(v.cedulaUsuario) = upper(:cedulaUsuario)
             """)
-    boolean existsActiveDailySolicitudByUser(
-            @Param("fecha") LocalDate fecha,
-            @Param("cedulaUsuario") String cedulaUsuario,
-            @Param("solicitudId") Long solicitudId
+    Long countVisitsByCedula(
+            @Param("cedulaUsuario") String cedulaUsuario
     );
 
     @Query("""
-            select case when count(v) > 0 then true else false end
+            select count(v)
             from VentanillaRegistro v
-            where v.activo = true
-              and v.id <> :id
-              and v.fecha = :fecha
-              and upper(v.cedulaUsuario) = upper(:cedulaUsuario)
-              and v.solicitud.id = :solicitudId
+            where upper(v.cedulaUsuario) = upper(:cedulaUsuario)
+              and v.fecha >= :fechaInicio
+              and v.fecha <= :fechaFin
             """)
-    boolean existsActiveDailySolicitudByUserAndIdNot(
-            @Param("id") Long id,
-            @Param("fecha") LocalDate fecha,
+    Long countVisitsByCedulaBetween(
             @Param("cedulaUsuario") String cedulaUsuario,
-            @Param("solicitudId") Long solicitudId
+            @Param("fechaInicio") LocalDate fechaInicio,
+            @Param("fechaFin") LocalDate fechaFin
     );
 
     @Query("""
             select v
             from VentanillaRegistro v
-            left join fetch v.solicitud
-            left join fetch v.estadoSolicitud
-            left join fetch v.funcionario
-            left join fetch v.categoria
-            left join fetch v.barrio b
-            left join fetch b.comuna
-            where v.activo = true
-              and upper(v.cedulaUsuario) = upper(:cedulaUsuario)
+            where upper(v.cedulaUsuario) = upper(:cedulaUsuario)
+              and (
+                    v.fecha < :fecha
+                    or (v.fecha = :fecha and v.id < :id)
+              )
             order by v.fecha desc, v.id desc
             """)
-    List<VentanillaRegistro> findActiveTraceabilityByCedula(
-            @Param("cedulaUsuario") String cedulaUsuario
+    List<VentanillaRegistro> findPreviousVisitsByCedula(
+            @Param("cedulaUsuario") String cedulaUsuario,
+            @Param("fecha") LocalDate fecha,
+            @Param("id") Long id,
+            Pageable pageable
     );
 
     @Query("""
@@ -279,27 +272,6 @@ public interface VentanillaRegistroRepository extends JpaRepository<VentanillaRe
             Pageable pageable
     );
 
-    @Query("""
-            select v
-            from VentanillaRegistro v
-            left join fetch v.solicitud
-            left join fetch v.estadoSolicitud
-            left join fetch v.funcionario
-            left join fetch v.categoria
-            left join fetch v.barrio b
-            left join fetch b.comuna
-            where v.activo = true
-              and v.fecha = :fecha
-              and upper(v.cedulaUsuario) = upper(:cedulaUsuario)
-              and (:currentId is null or v.id <> :currentId)
-            order by v.id desc
-            """)
-    List<VentanillaRegistro> findActiveDailyRequestsByCedula(
-            @Param("fecha") LocalDate fecha,
-            @Param("cedulaUsuario") String cedulaUsuario,
-            @Param("currentId") Long currentId
-    );
-
     @Query(
             value = """
                     select new com.appsisben.backend.modules.ventanilla.dto.VentanillaUserHistorySummaryResponse(
@@ -312,8 +284,7 @@ public interface VentanillaRegistroRepository extends JpaRepository<VentanillaRe
                         max(v.fecha)
                     )
                     from VentanillaRegistro v
-                    where v.activo = true
-                      and (
+                    where (
                             :search is null
                             or lower(v.cedulaUsuario) like lower(concat('%', :search, '%'))
                             or lower(v.nombreUsuario) like lower(concat('%', :search, '%'))
@@ -324,8 +295,7 @@ public interface VentanillaRegistroRepository extends JpaRepository<VentanillaRe
             countQuery = """
                     select count(distinct v.cedulaUsuario)
                     from VentanillaRegistro v
-                    where v.activo = true
-                      and (
+                    where (
                             :search is null
                             or lower(v.cedulaUsuario) like lower(concat('%', :search, '%'))
                             or lower(v.nombreUsuario) like lower(concat('%', :search, '%'))
@@ -335,5 +305,104 @@ public interface VentanillaRegistroRepository extends JpaRepository<VentanillaRe
     Page<VentanillaUserHistorySummaryResponse> findUserHistorySummaries(
             @Param("search") String search,
             Pageable pageable
+    );
+
+    @Query("""
+            select v
+            from VentanillaRegistro v
+            left join fetch v.solicitud
+            left join fetch v.estadoSolicitud
+            left join fetch v.funcionario
+            left join fetch v.categoria
+            left join fetch v.barrio b
+            left join fetch b.comuna
+            where v.fecha = :fecha
+              and upper(v.cedulaUsuario) = upper(:cedulaUsuario)
+            order by case when v.activo = true then 0 else 1 end asc, v.id desc
+            """)
+    List<VentanillaRegistro> findDailyRequestsByCedula(
+            @Param("fecha") LocalDate fecha,
+            @Param("cedulaUsuario") String cedulaUsuario
+    );
+
+    @Query("""
+            select v
+            from VentanillaRegistro v
+            left join fetch v.solicitud
+            left join fetch v.estadoSolicitud
+            left join fetch v.funcionario
+            left join fetch v.categoria
+            left join fetch v.barrio b
+            left join fetch b.comuna
+            where v.fecha = :fecha
+              and upper(v.cedulaUsuario) = upper(:cedulaUsuario)
+              and v.id <> :currentId
+            order by case when v.activo = true then 0 else 1 end asc, v.id desc
+            """)
+    List<VentanillaRegistro> findDailyRequestsByCedulaAndIdNot(
+            @Param("fecha") LocalDate fecha,
+            @Param("cedulaUsuario") String cedulaUsuario,
+            @Param("currentId") Long currentId
+    );
+
+    @Query("""
+            select case when count(v) > 0 then true else false end
+            from VentanillaRegistro v
+            where v.fecha = :fecha
+              and upper(v.cedulaUsuario) = upper(:cedulaUsuario)
+              and v.solicitud.id = :solicitudId
+            """)
+    boolean existsDailySolicitudByUser(
+            @Param("fecha") LocalDate fecha,
+            @Param("cedulaUsuario") String cedulaUsuario,
+            @Param("solicitudId") Long solicitudId
+    );
+
+    @Query("""
+            select case when count(v) > 0 then true else false end
+            from VentanillaRegistro v
+            where v.fecha = :fecha
+              and upper(v.cedulaUsuario) = upper(:cedulaUsuario)
+              and v.solicitud.id = :solicitudId
+              and v.id <> :currentId
+            """)
+    boolean existsDailySolicitudByUserAndIdNot(
+            @Param("currentId") Long currentId,
+            @Param("fecha") LocalDate fecha,
+            @Param("cedulaUsuario") String cedulaUsuario,
+            @Param("solicitudId") Long solicitudId
+    );
+
+    @Query("""
+            select v
+            from VentanillaRegistro v
+            left join fetch v.solicitud
+            left join fetch v.estadoSolicitud
+            left join fetch v.funcionario
+            left join fetch v.categoria
+            left join fetch v.barrio b
+            left join fetch b.comuna
+            where upper(v.cedulaUsuario) = upper(:cedulaUsuario)
+            order by v.fecha desc, v.id desc
+            """)
+    List<VentanillaRegistro> findTraceabilityByCedula(
+            @Param("cedulaUsuario") String cedulaUsuario
+    );
+
+    @Query("""
+            select v
+            from VentanillaRegistro v
+            left join fetch v.solicitud
+            left join fetch v.estadoSolicitud
+            left join fetch v.funcionario
+            left join fetch v.categoria
+            left join fetch v.barrio b
+            left join fetch b.comuna
+            where v.activo = true
+              and upper(v.cedulaUsuario) = upper(:cedulaUsuario)
+            order by v.fecha desc, v.id desc
+            """)
+    List<VentanillaRegistro> findActiveTraceabilityByCedula(
+            @Param("cedulaUsuario") String cedulaUsuario
     );
 }

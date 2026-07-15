@@ -44,6 +44,7 @@ public record VentanillaRequest(
         @NotNull(message = "El estado de solicitud es obligatorio")
         Long estadoSolicitudId,
 
-        String observacion
+        String observacion,
+        String motivoRepeticion
 ) {
 }

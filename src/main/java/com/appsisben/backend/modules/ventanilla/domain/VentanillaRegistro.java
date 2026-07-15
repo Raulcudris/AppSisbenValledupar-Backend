@@ -67,6 +67,9 @@ public class VentanillaRegistro extends BaseEntity {
     @Column(name = "observacion", columnDefinition = "TEXT")
     private String observacion;
 
+    @Column(name = "motivo_repeticion", length = 500)
+    private String motivoRepeticion;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "editado_por_id")
     private User editadoPor;
