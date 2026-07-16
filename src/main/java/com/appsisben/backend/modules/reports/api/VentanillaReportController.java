@@ -54,6 +54,15 @@ public class VentanillaReportController {
     }
 
     @PreAuthorize(AppRolePreAuthorize.REPORT_READ)
+    @GetMapping("/ventanilla/employee-productivity")
+    public ApiResponse<List<VentanillaEmployeeProductivityResponse>> employeeProductivity(
+            @ModelAttribute ReportDateRangeRequest request,
+            @RequestParam(defaultValue = "SEMANAL") String grouping
+    ) {
+        return ApiResponse.ok(reportService.employeeProductivity(request, grouping));
+    }
+
+    @PreAuthorize(AppRolePreAuthorize.REPORT_READ)
     @GetMapping("/ventanilla/by-request-type")
     public ApiResponse<List<ReportGroupResponse>> byRequestType(
             @ModelAttribute ReportDateRangeRequest request

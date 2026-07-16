@@ -1,5 +1,6 @@
 package com.appsisben.backend.modules.export.application;
 
+import com.appsisben.backend.modules.export.dto.ExportVentanillaPreviewResponse;
 import com.appsisben.backend.modules.ventanilla.domain.VentanillaRegistro;
 import com.appsisben.backend.modules.ventanilla.dto.VentanillaFilterRequest;
 import com.appsisben.backend.modules.ventanilla.repository.VentanillaRegistroRepository;
@@ -12,6 +13,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -27,6 +29,29 @@ import java.util.List;
 public class VentanillaExcelExportService {
 
     private final VentanillaRegistroRepository repository;
+
+    @Transactional(readOnly = true)
+    public List<ExportVentanillaPreviewResponse> preview(VentanillaFilterRequest filter, Integer limit) {
+        boolean allowInactiveRecords = isAdmin()
+                && filter != null
+                && Boolean.TRUE.equals(filter.incluirInactivos());
+
+        int safeLimit = limit == null ? 200 : Math.max(1, Math.min(limit, 500));
+
+        return repository.findAll(
+                        VentanillaSpecification.byFilter(filter, allowInactiveRecords),
+                        PageRequest.of(
+                                0,
+                                safeLimit,
+                                Sort.by(Sort.Direction.DESC, "fecha")
+                                        .and(Sort.by(Sort.Direction.DESC, "id"))
+                        )
+                )
+                .getContent()
+                .stream()
+                .map(this::toPreviewResponse)
+                .toList();
+    }
 
     @Transactional(readOnly = true)
     public byte[] export(VentanillaFilterRequest filter) {
@@ -137,6 +162,29 @@ public class VentanillaExcelExportService {
         } catch (IOException ex) {
             throw new ExcelExportException("No fue posible exportar los registros de ventanilla", ex);
         }
+    }
+
+    private ExportVentanillaPreviewResponse toPreviewResponse(VentanillaRegistro registro) {
+        return new ExportVentanillaPreviewResponse(
+                registro.getId(),
+                registro.getFecha(),
+                registro.getNumeroVentanilla(),
+                registro.getFuncionario() != null ? registro.getFuncionario().getUsername() : "",
+                registro.getCedulaUsuario(),
+                registro.getNombreUsuario(),
+                registro.getTelefono(),
+                registro.getCategoria() != null ? registro.getCategoria().getNombre() : "",
+                registro.getDireccion(),
+                registro.getBarrio() != null ? registro.getBarrio().getNombre() : "",
+                registro.getBarrio() != null && registro.getBarrio().getComuna() != null
+                        ? registro.getBarrio().getComuna().getNombre()
+                        : "",
+                registro.getExtranjero(),
+                registro.getSolicitud() != null ? registro.getSolicitud().getNombre() : "",
+                registro.getEstadoSolicitud() != null ? registro.getEstadoSolicitud().getNombre() : "",
+                Boolean.TRUE.equals(registro.getActivo()) ? "ACTIVO" : "INACTIVO",
+                registro.getObservacion()
+        );
     }
 
     private boolean isAdmin() {

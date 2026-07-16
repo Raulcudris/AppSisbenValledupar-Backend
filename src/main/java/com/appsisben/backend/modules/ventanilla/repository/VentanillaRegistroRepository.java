@@ -462,4 +462,24 @@ public interface VentanillaRegistroRepository extends JpaRepository<VentanillaRe
             @Param("fechaFin") LocalDate fechaFin,
             Pageable pageable
     );
+
+    @Query("""
+        select new com.appsisben.backend.modules.reports.dto.VentanillaEmployeeDailyCount(
+            v.fecha,
+            f.id,
+            coalesce(f.username, 'Sin funcionario'),
+            count(v)
+        )
+        from VentanillaRegistro v
+        left join v.funcionario f
+        where v.activo = true
+          and (:fechaInicio is null or v.fecha >= :fechaInicio)
+          and (:fechaFin is null or v.fecha <= :fechaFin)
+        group by v.fecha, f.id, f.username
+        order by v.fecha asc, f.username asc
+        """)
+List<VentanillaEmployeeDailyCount> countEmployeeDailyProductivity(
+        @Param("fechaInicio") LocalDate fechaInicio,
+        @Param("fechaFin") LocalDate fechaFin
+);
 }

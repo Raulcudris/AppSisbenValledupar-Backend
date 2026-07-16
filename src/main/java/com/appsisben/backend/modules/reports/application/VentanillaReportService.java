@@ -7,9 +7,15 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.IsoFields;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -110,6 +116,95 @@ public class VentanillaReportService {
         return repository.countFuncionarioTrend(fechaInicio(request), fechaFin(request));
     }
 
+    @Transactional(readOnly = true)
+    public List<VentanillaFrequentCitizenResponse> frequentCitizens(
+            ReportDateRangeRequest request,
+            Integer limit
+    ) {
+        int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 200));
+
+        return repository.findFrequentCitizens(
+                fechaInicio(request),
+                fechaFin(request),
+                PageRequest.of(0, safeLimit)
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public List<VentanillaEmployeeProductivityResponse> employeeProductivity(
+            ReportDateRangeRequest request,
+            String grouping
+    ) {
+        LocalDate fechaInicio = fechaInicio(request);
+        LocalDate fechaFin = fechaFin(request);
+        ProductivityGrouping productivityGrouping = parseProductivityGrouping(grouping);
+
+        List<VentanillaEmployeeDailyCount> dailyRows =
+                repository.countEmployeeDailyProductivity(fechaInicio, fechaFin);
+
+        if (dailyRows.isEmpty()) {
+            return List.of();
+        }
+
+        Map<ProductivityKey, Long> totalsByEmployeeAndPeriod = new HashMap<>();
+        Map<String, Long> totalsByPeriod = new HashMap<>();
+
+        for (VentanillaEmployeeDailyCount row : dailyRows) {
+            PeriodInfo periodInfo = buildPeriodInfo(
+                    row.fecha(),
+                    productivityGrouping,
+                    fechaInicio,
+                    fechaFin
+            );
+
+            ProductivityKey key = new ProductivityKey(
+                    periodInfo.periodo(),
+                    periodInfo.fechaInicio(),
+                    periodInfo.fechaFin(),
+                    row.funcionarioId(),
+                    row.funcionarioUsername()
+            );
+
+            Long total = safe(row.total());
+
+            totalsByEmployeeAndPeriod.merge(key, total, Long::sum);
+            totalsByPeriod.merge(periodInfo.periodo(), total, Long::sum);
+        }
+
+        List<VentanillaEmployeeProductivityResponse> response = new ArrayList<>();
+
+        totalsByEmployeeAndPeriod.forEach((key, total) -> {
+            long totalPeriodo = totalsByPeriod.getOrDefault(key.periodo(), 0L);
+
+            response.add(new VentanillaEmployeeProductivityResponse(
+                    key.periodo(),
+                    key.fechaInicioPeriodo(),
+                    key.fechaFinPeriodo(),
+                    key.funcionarioId(),
+                    key.funcionarioUsername(),
+                    total,
+                    porcentaje(total, totalPeriodo),
+                    promedioDiario(total, totalDias(key.fechaInicioPeriodo(), key.fechaFinPeriodo()))
+            ));
+        });
+
+        response.sort(
+                Comparator
+                        .comparing(VentanillaEmployeeProductivityResponse::fechaInicioPeriodo)
+                        .thenComparing(
+                                Comparator
+                                        .comparing(VentanillaEmployeeProductivityResponse::totalAtenciones)
+                                        .reversed()
+                        )
+                        .thenComparing(
+                                VentanillaEmployeeProductivityResponse::funcionarioUsername,
+                                Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
+                        )
+        );
+
+        return response;
+    }
+
     private LocalDate fechaInicio(ReportDateRangeRequest request) {
         return request != null ? request.fechaInicio() : null;
     }
@@ -150,17 +245,86 @@ public class VentanillaReportService {
         return Math.round(value * 100.0) / 100.0;
     }
 
-    @Transactional(readOnly = true)
-    public List<VentanillaFrequentCitizenResponse> frequentCitizens(
-            ReportDateRangeRequest request,
-            Integer limit
-    ) {
-        int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 200));
+    private ProductivityGrouping parseProductivityGrouping(String grouping) {
+        if ("MENSUAL".equalsIgnoreCase(grouping)) {
+            return ProductivityGrouping.MENSUAL;
+        }
 
-        return repository.findFrequentCitizens(
-                fechaInicio(request),
-                fechaFin(request),
-                PageRequest.of(0, safeLimit)
-        );
+        return ProductivityGrouping.SEMANAL;
+    }
+
+    private PeriodInfo buildPeriodInfo(
+            LocalDate fecha,
+            ProductivityGrouping grouping,
+            LocalDate reportStart,
+            LocalDate reportEnd
+    ) {
+        if (grouping == ProductivityGrouping.MENSUAL) {
+            LocalDate start = fecha.withDayOfMonth(1);
+            LocalDate end = fecha.withDayOfMonth(fecha.lengthOfMonth());
+
+            LocalDate clippedStart = clipStart(start, reportStart);
+            LocalDate clippedEnd = clipEnd(end, reportEnd);
+
+            String label = "Mes "
+                    + String.format("%02d", fecha.getMonthValue())
+                    + "-"
+                    + fecha.getYear();
+
+            return new PeriodInfo(label, clippedStart, clippedEnd);
+        }
+
+        LocalDate start = fecha.with(DayOfWeek.MONDAY);
+        LocalDate end = fecha.with(DayOfWeek.SUNDAY);
+
+        LocalDate clippedStart = clipStart(start, reportStart);
+        LocalDate clippedEnd = clipEnd(end, reportEnd);
+
+        int week = fecha.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
+        int weekYear = fecha.get(IsoFields.WEEK_BASED_YEAR);
+
+        String label = "Semana "
+                + String.format("%02d", week)
+                + "-"
+                + weekYear;
+
+        return new PeriodInfo(label, clippedStart, clippedEnd);
+    }
+
+    private LocalDate clipStart(LocalDate periodStart, LocalDate reportStart) {
+        if (reportStart == null) {
+            return periodStart;
+        }
+
+        return periodStart.isBefore(reportStart) ? reportStart : periodStart;
+    }
+
+    private LocalDate clipEnd(LocalDate periodEnd, LocalDate reportEnd) {
+        if (reportEnd == null) {
+            return periodEnd;
+        }
+
+        return periodEnd.isAfter(reportEnd) ? reportEnd : periodEnd;
+    }
+
+    private enum ProductivityGrouping {
+        SEMANAL,
+        MENSUAL
+    }
+
+    private record PeriodInfo(
+            String periodo,
+            LocalDate fechaInicio,
+            LocalDate fechaFin
+    ) {
+    }
+
+    private record ProductivityKey(
+            String periodo,
+            LocalDate fechaInicioPeriodo,
+            LocalDate fechaFinPeriodo,
+            Long funcionarioId,
+            String funcionarioUsername
+    ) {
     }
 }

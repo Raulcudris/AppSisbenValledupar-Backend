@@ -6,9 +6,12 @@ import com.appsisben.backend.modules.dmc.dto.DmcFilterRequest;
 import com.appsisben.backend.modules.export.application.DmcExcelExportService;
 import com.appsisben.backend.modules.export.application.ReportExcelExportService;
 import com.appsisben.backend.modules.export.application.VentanillaExcelExportService;
+import com.appsisben.backend.modules.export.dto.ExportDmcPreviewResponse;
+import com.appsisben.backend.modules.export.dto.ExportVentanillaPreviewResponse;
 import com.appsisben.backend.modules.reports.dto.ReportDateRangeRequest;
 import com.appsisben.backend.modules.ventanilla.dto.VentanillaFilterRequest;
 import com.appsisben.backend.security.AppRolePreAuthorize;
+import com.appsisben.backend.shared.api.ApiResponse;
 import com.appsisben.backend.shared.export.ExcelResponseUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
@@ -17,11 +20,13 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -34,6 +39,22 @@ public class ExcelExportController {
     private final DmcExcelExportService dmcExcelExportService;
     private final ReportExcelExportService reportExcelExportService;
     private final AuditService auditService;
+
+    @GetMapping("/preview/ventanilla")
+    public ApiResponse<List<ExportVentanillaPreviewResponse>> previewVentanilla(
+            @ModelAttribute VentanillaFilterRequest filter,
+            @RequestParam(defaultValue = "200") Integer limit
+    ) {
+        return ApiResponse.ok(ventanillaExcelExportService.preview(filter, limit));
+    }
+
+    @GetMapping("/preview/dmc")
+    public ApiResponse<List<ExportDmcPreviewResponse>> previewDmc(
+            @ModelAttribute DmcFilterRequest filter,
+            @RequestParam(defaultValue = "200") Integer limit
+    ) {
+        return ApiResponse.ok(dmcExcelExportService.preview(filter, limit));
+    }
 
     @GetMapping("/ventanilla")
     public ResponseEntity<ByteArrayResource> exportVentanilla(@ModelAttribute VentanillaFilterRequest filter) {

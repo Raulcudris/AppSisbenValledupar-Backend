@@ -4,6 +4,7 @@ import com.appsisben.backend.modules.dmc.domain.DmcRegistro;
 import com.appsisben.backend.modules.dmc.dto.DmcFilterRequest;
 import com.appsisben.backend.modules.dmc.repository.DmcRegistroRepository;
 import com.appsisben.backend.modules.dmc.repository.DmcSpecification;
+import com.appsisben.backend.modules.export.dto.ExportDmcPreviewResponse;
 import com.appsisben.backend.shared.export.ExcelExportException;
 import com.appsisben.backend.shared.export.ExcelWorkbookUtil;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +13,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +27,25 @@ import java.util.List;
 public class DmcExcelExportService {
 
     private final DmcRegistroRepository repository;
+
+    @Transactional(readOnly = true)
+    public List<ExportDmcPreviewResponse> preview(DmcFilterRequest filter, Integer limit) {
+        int safeLimit = limit == null ? 200 : Math.max(1, Math.min(limit, 500));
+
+        return repository.findAll(
+                        DmcSpecification.byFilter(filter),
+                        PageRequest.of(
+                                0,
+                                safeLimit,
+                                Sort.by(Sort.Direction.DESC, "fecha")
+                                        .and(Sort.by(Sort.Direction.DESC, "id"))
+                        )
+                )
+                .getContent()
+                .stream()
+                .map(this::toPreviewResponse)
+                .toList();
+    }
 
     @Transactional(readOnly = true)
     public byte[] export(DmcFilterRequest filter) {
@@ -82,5 +103,22 @@ public class DmcExcelExportService {
         } catch (IOException ex) {
             throw new ExcelExportException("No fue posible exportar los registros DMC", ex);
         }
+    }
+
+    private ExportDmcPreviewResponse toPreviewResponse(DmcRegistro registro) {
+        return new ExportDmcPreviewResponse(
+                registro.getId(),
+                registro.getFecha(),
+                registro.getFuncionario() != null ? registro.getFuncionario().getUsername() : "",
+                registro.getTipoDmc() != null ? registro.getTipoDmc().getCodigo() : "",
+                registro.getTipoDmc() != null ? registro.getTipoDmc().getNombre() : "",
+                registro.getEncuestador() != null ? registro.getEncuestador().getNombre() : "",
+                registro.getCantidad(),
+                registro.getBarrio() != null ? registro.getBarrio().getNombre() : "",
+                registro.getBarrio() != null && registro.getBarrio().getComuna() != null
+                        ? registro.getBarrio().getComuna().getNombre()
+                        : "",
+                registro.getObservacion()
+        );
     }
 }
