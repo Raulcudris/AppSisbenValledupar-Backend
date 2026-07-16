@@ -3,13 +3,7 @@ package com.appsisben.backend.modules.reports.api;
 import com.appsisben.backend.modules.reports.application.VentanillaReportService;
 import com.appsisben.backend.modules.reports.application.VentanillaSolicitudPdfReportService;
 import com.appsisben.backend.modules.reports.application.VentanillaSolicitudPreviewService;
-import com.appsisben.backend.modules.reports.dto.ReportDateRangeRequest;
-import com.appsisben.backend.modules.reports.dto.ReportGroupResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaDailyTrendResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaFuncionarioPerformanceResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaFuncionarioTrendResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaReportSummaryResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaSolicitudPreviewResponse;
+import com.appsisben.backend.modules.reports.dto.*;
 import com.appsisben.backend.security.AppRolePreAuthorize;
 import com.appsisben.backend.shared.api.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -190,5 +184,14 @@ public class VentanillaReportController {
         return ApiResponse.ok(
                 reportService.funcionariosTrend(new ReportDateRangeRequest(fechaInicio, fechaFin))
         );
+    }
+
+    @PreAuthorize(AppRolePreAuthorize.REPORT_READ)
+    @GetMapping("/ventanilla/frequent-citizens")
+    public ApiResponse<List<VentanillaFrequentCitizenResponse>> frequentCitizens(
+            @ModelAttribute ReportDateRangeRequest request,
+            @RequestParam(defaultValue = "50") Integer limit
+    ) {
+        return ApiResponse.ok(reportService.frequentCitizens(request, limit));
     }
 }

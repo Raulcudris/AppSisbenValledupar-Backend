@@ -1,9 +1,6 @@
 package com.appsisben.backend.modules.ventanilla.repository;
 
-import com.appsisben.backend.modules.reports.dto.ReportGroupResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaDailyTrendResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaFuncionarioTrendResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaSolicitudDailyCount;
+import com.appsisben.backend.modules.reports.dto.*;
 import com.appsisben.backend.modules.ventanilla.domain.VentanillaRegistro;
 import com.appsisben.backend.modules.ventanilla.dto.VentanillaUserHistorySummaryResponse;
 import org.springframework.data.domain.Page;
@@ -441,5 +438,28 @@ public interface VentanillaRegistroRepository extends JpaRepository<VentanillaRe
     List<VentanillaFuncionarioTrendResponse> countFuncionarioTrend(
             @Param("fechaInicio") LocalDate fechaInicio,
             @Param("fechaFin") LocalDate fechaFin
+    );
+
+    @Query("""
+        select new com.appsisben.backend.modules.reports.dto.VentanillaFrequentCitizenResponse(
+            v.cedulaUsuario,
+            max(v.nombreUsuario),
+            max(v.telefono),
+            count(distinct v.fecha),
+            count(v),
+            min(v.fecha),
+            max(v.fecha)
+        )
+        from VentanillaRegistro v
+        where v.activo = true
+          and (:fechaInicio is null or v.fecha >= :fechaInicio)
+          and (:fechaFin is null or v.fecha <= :fechaFin)
+        group by v.cedulaUsuario
+        order by count(distinct v.fecha) desc, count(v) desc, max(v.fecha) desc
+        """)
+    List<VentanillaFrequentCitizenResponse> findFrequentCitizens(
+            @Param("fechaInicio") LocalDate fechaInicio,
+            @Param("fechaFin") LocalDate fechaFin,
+            Pageable pageable
     );
 }

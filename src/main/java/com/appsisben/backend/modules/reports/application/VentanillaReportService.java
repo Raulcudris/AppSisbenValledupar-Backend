@@ -1,13 +1,9 @@
 package com.appsisben.backend.modules.reports.application;
 
-import com.appsisben.backend.modules.reports.dto.ReportDateRangeRequest;
-import com.appsisben.backend.modules.reports.dto.ReportGroupResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaDailyTrendResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaFuncionarioPerformanceResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaFuncionarioTrendResponse;
-import com.appsisben.backend.modules.reports.dto.VentanillaReportSummaryResponse;
+import com.appsisben.backend.modules.reports.dto.*;
 import com.appsisben.backend.modules.ventanilla.repository.VentanillaRegistroRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -152,5 +148,19 @@ public class VentanillaReportService {
 
     private Double round(Double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    @Transactional(readOnly = true)
+    public List<VentanillaFrequentCitizenResponse> frequentCitizens(
+            ReportDateRangeRequest request,
+            Integer limit
+    ) {
+        int safeLimit = limit == null ? 50 : Math.max(1, Math.min(limit, 200));
+
+        return repository.findFrequentCitizens(
+                fechaInicio(request),
+                fechaFin(request),
+                PageRequest.of(0, safeLimit)
+        );
     }
 }
