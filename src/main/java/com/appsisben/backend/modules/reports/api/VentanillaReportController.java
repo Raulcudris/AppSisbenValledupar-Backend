@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.reports.api;
-
 import com.appsisben.backend.modules.reports.application.VentanillaReportService;
 import com.appsisben.backend.modules.reports.application.VentanillaSolicitudPdfReportService;
 import com.appsisben.backend.modules.reports.application.VentanillaSolicitudPreviewService;
@@ -18,7 +17,6 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
