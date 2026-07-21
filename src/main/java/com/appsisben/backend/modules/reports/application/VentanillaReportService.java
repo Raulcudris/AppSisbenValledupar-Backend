@@ -1,12 +1,10 @@
 package com.appsisben.backend.modules.reports.application;
-
 import com.appsisben.backend.modules.reports.dto.*;
 import com.appsisben.backend.modules.ventanilla.repository.VentanillaRegistroRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -326,5 +324,122 @@ public class VentanillaReportService {
             Long funcionarioId,
             String funcionarioUsername
     ) {
+    }
+
+    @Transactional(readOnly = true)
+    public List<VentanillaEmployeeDetailedPerformanceResponse> employeeDetailedPerformance(
+            ReportDateRangeRequest request
+    ) {
+        LocalDate fechaInicio = fechaInicio(request);
+        LocalDate fechaFin = fechaFin(request);
+
+        List<VentanillaEmployeeDetailedPerformanceRow> employeeRows =
+                repository.countEmployeeDetailedPerformance(fechaInicio, fechaFin);
+
+        if (employeeRows.isEmpty()) {
+            return List.of();
+        }
+
+        List<VentanillaEmployeeDailyDetailResponse> dailyRows =
+                repository.countEmployeeDetailedPerformanceDaily(fechaInicio, fechaFin);
+
+        Map<Long, List<VentanillaEmployeeDailyDetailResponse>> dailyByEmployeeId = new HashMap<>();
+        Map<String, List<VentanillaEmployeeDailyDetailResponse>> dailyByEmployeeName = new HashMap<>();
+
+        for (VentanillaEmployeeDailyDetailResponse row : dailyRows) {
+            if (row.funcionarioId() != null) {
+                dailyByEmployeeId
+                        .computeIfAbsent(row.funcionarioId(), key -> new ArrayList<>())
+                        .add(row);
+            } else {
+                dailyByEmployeeName
+                        .computeIfAbsent(normalizeEmployeeName(row.funcionarioUsername()), key -> new ArrayList<>())
+                        .add(row);
+            }
+        }
+
+        long totalGeneral = employeeRows
+                .stream()
+                .map(VentanillaEmployeeDetailedPerformanceRow::totalAtenciones)
+                .map(this::safe)
+                .reduce(0L, Long::sum);
+
+        long totalDias = totalDiasHabiles(fechaInicio, fechaFin);
+
+        return employeeRows
+                .stream()
+                .map(row -> {
+                    Long totalAtenciones = safe(row.totalAtenciones());
+
+                    List<VentanillaEmployeeDailyDetailResponse> employeeDailyRows =
+                            row.funcionarioId() != null
+                                    ? dailyByEmployeeId.getOrDefault(row.funcionarioId(), List.of())
+                                    : dailyByEmployeeName.getOrDefault(
+                                    normalizeEmployeeName(row.funcionarioUsername()),
+                                    List.of()
+                            );
+
+                    return new VentanillaEmployeeDetailedPerformanceResponse(
+                            row.funcionarioId(),
+                            row.funcionarioUsername(),
+                            totalAtenciones,
+                            porcentaje(totalAtenciones, totalGeneral),
+                            promedioDiario(totalAtenciones, totalDias),
+                            safe(row.pendientes()),
+                            safe(row.realizadas()),
+                            safe(row.aprobadas()),
+                            safe(row.rechazadas()),
+                            safe(row.canceladas()),
+                            safe(row.revisar()),
+                            safe(row.nacionales()),
+                            safe(row.extranjeros()),
+                            employeeDailyRows
+                                    .stream()
+                                    .sorted(
+                                            Comparator
+                                                    .comparing(VentanillaEmployeeDailyDetailResponse::fecha)
+                                                    .thenComparing(
+                                                            VentanillaEmployeeDailyDetailResponse::funcionarioUsername,
+                                                            Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
+                                                    )
+                                    )
+                                    .toList()
+                    );
+                })
+                .sorted(
+                        Comparator
+                                .comparing(VentanillaEmployeeDetailedPerformanceResponse::totalAtenciones)
+                                .reversed()
+                                .thenComparing(
+                                        VentanillaEmployeeDetailedPerformanceResponse::funcionarioUsername,
+                                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
+                                )
+                )
+                .toList();
+    }
+
+    private String normalizeEmployeeName(String value) {
+        return value == null ? "Sin funcionario" : value.trim().toLowerCase();
+    }
+
+    private long totalDiasHabiles(LocalDate fechaInicio, LocalDate fechaFin) {
+        if (fechaInicio == null || fechaFin == null) {
+            return 1L;
+        }
+
+        long total = 0L;
+        LocalDate current = fechaInicio;
+
+        while (!current.isAfter(fechaFin)) {
+            DayOfWeek dayOfWeek = current.getDayOfWeek();
+
+            if (dayOfWeek != DayOfWeek.SATURDAY && dayOfWeek != DayOfWeek.SUNDAY) {
+                total++;
+            }
+
+            current = current.plusDays(1);
+        }
+
+        return Math.max(1L, total);
     }
 }

@@ -201,4 +201,20 @@ public class VentanillaReportController {
     ) {
         return ApiResponse.ok(reportService.frequentCitizens(request, limit));
     }
+
+    @PreAuthorize(AppRolePreAuthorize.REPORT_READ)
+    @GetMapping("/ventanilla/funcionarios/desempeno-detallado")
+    public ApiResponse<List<VentanillaEmployeeDetailedPerformanceResponse>> getEmployeeDetailedPerformance(
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate fechaInicio,
+
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate fechaFin
+    ) {
+        return ApiResponse.ok(
+                reportService.employeeDetailedPerformance(new ReportDateRangeRequest(fechaInicio, fechaFin))
+        );
+    }
 }
