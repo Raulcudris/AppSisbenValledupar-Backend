@@ -13,12 +13,26 @@ public final class DmcSpecification {
     private DmcSpecification() {
     }
 
+    public static Specification<DmcRegistro> activeOnly() {
+        return (root, query, criteriaBuilder) ->
+                criteriaBuilder.isTrue(root.get("activo"));
+    }
+
     public static Specification<DmcRegistro> byFilter(DmcFilterRequest filter) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
 
+            boolean incluirInactivos = filter != null
+                    && Boolean.TRUE.equals(filter.incluirInactivos());
+
+            if (!incluirInactivos) {
+                predicates.add(criteriaBuilder.isTrue(root.get("activo")));
+            } else if (filter.activo() != null) {
+                predicates.add(criteriaBuilder.equal(root.get("activo"), filter.activo()));
+            }
+
             if (filter == null) {
-                return criteriaBuilder.conjunction();
+                return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
             }
 
             if (filter.fechaInicio() != null) {

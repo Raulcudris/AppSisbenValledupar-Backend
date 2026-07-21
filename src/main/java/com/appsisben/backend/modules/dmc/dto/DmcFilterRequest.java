@@ -15,6 +15,9 @@ public record DmcFilterRequest(
         Long tipoDmcId,
         Long encuestadorId,
         Long barrioId,
-        Long comunaId
+        Long comunaId,
+
+        Boolean incluirInactivos,
+        Boolean activo
 ) {
 }

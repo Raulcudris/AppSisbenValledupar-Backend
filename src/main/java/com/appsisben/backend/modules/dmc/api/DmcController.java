@@ -13,6 +13,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -65,7 +66,18 @@ public class DmcController {
 
     @PreAuthorize(AppRolePreAuthorize.DMC_WRITE)
     @PutMapping("/{id}")
-    public ApiResponse<DmcResponse> update(@PathVariable Long id, @Valid @RequestBody DmcRequest request) {
+    public ApiResponse<DmcResponse> update(
+            @PathVariable Long id,
+            @Valid @RequestBody DmcRequest request
+    ) {
         return ApiResponse.ok("Registro DMC actualizado correctamente", service.update(id, request));
+    }
+
+    @PreAuthorize(AppRolePreAuthorize.DMC_WRITE)
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        service.delete(id);
+
+        return ApiResponse.ok("Registro DMC retirado correctamente", null);
     }
 }

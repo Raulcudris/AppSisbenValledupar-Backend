@@ -46,4 +46,7 @@ public class DmcRegistro extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "barrio_id", nullable = false)
     private Barrio barrio;
+
+    @Column(name = "activo", nullable = false)
+    private Boolean activo = true;
 }

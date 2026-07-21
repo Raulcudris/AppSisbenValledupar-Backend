@@ -16,6 +16,7 @@ public record DmcResponse(
         String observacion,
         Long barrioId,
         String barrioNombre,
-        String comunaNombre
+        String comunaNombre,
+        Boolean activo
 ) {
 }

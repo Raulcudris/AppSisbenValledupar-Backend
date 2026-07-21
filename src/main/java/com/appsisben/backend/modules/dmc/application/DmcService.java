@@ -34,6 +34,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DmcService {
 
+    private static final String TABLE_NAME = "dmc_registro";
+
     private final DmcRegistroRepository repository;
     private final UserRepository userRepository;
     private final TipoDmcRepository tipoDmcRepository;
@@ -43,34 +45,53 @@ public class DmcService {
 
     @Transactional(readOnly = true)
     public PageResponse<DmcResponse> findAll(Pageable pageable) {
-        Page<DmcRegistro> page = repository.findAll(pageable);
-        List<DmcResponse> content = page.getContent().stream().map(this::toResponse).toList();
+        Page<DmcRegistro> page = repository.findAll(
+                DmcSpecification.activeOnly(),
+                pageable
+        );
+
+        List<DmcResponse> content = page.getContent()
+                .stream()
+                .map(this::toResponse)
+                .toList();
+
         return PageResponse.from(page, content);
     }
 
     @Transactional(readOnly = true)
     public PageResponse<DmcResponse> search(DmcFilterRequest filter, Pageable pageable) {
-        Page<DmcRegistro> page = repository.findAll(DmcSpecification.byFilter(filter), pageable);
-        List<DmcResponse> content = page.getContent().stream().map(this::toResponse).toList();
+        Page<DmcRegistro> page = repository.findAll(
+                DmcSpecification.byFilter(filter),
+                pageable
+        );
+
+        List<DmcResponse> content = page.getContent()
+                .stream()
+                .map(this::toResponse)
+                .toList();
+
         return PageResponse.from(page, content);
     }
 
     @Transactional(readOnly = true)
     public DmcResponse findById(Long id) {
-        return toResponse(findEntity(id));
+        return toResponse(findActiveEntity(id));
     }
 
     @Transactional
     public DmcResponse create(DmcRequest request) {
         DmcRegistro entity = new DmcRegistro();
+
         entity.setFuncionario(currentUser());
+        entity.setActivo(true);
+
         apply(entity, request);
 
         DmcRegistro saved = repository.save(entity);
 
         auditService.safeLog(
                 AuditAction.CREATE,
-                "dmc_registro",
+                TABLE_NAME,
                 saved.getId(),
                 null,
                 snapshot(saved)
@@ -81,14 +102,14 @@ public class DmcService {
 
     @Transactional
     public DmcResponse update(Long id, DmcRequest request) {
-        DmcRegistro entity = findEntity(id);
+        DmcRegistro entity = findActiveEntity(id);
         Map<String, Object> before = snapshot(entity);
 
         apply(entity, request);
 
         auditService.safeLog(
                 AuditAction.UPDATE,
-                "dmc_registro",
+                TABLE_NAME,
                 entity.getId(),
                 before,
                 snapshot(entity)
@@ -97,9 +118,35 @@ public class DmcService {
         return toResponse(entity);
     }
 
+    @Transactional
+    public void delete(Long id) {
+        DmcRegistro entity = findActiveEntity(id);
+        Map<String, Object> before = snapshot(entity);
+
+        entity.setActivo(false);
+
+        auditService.safeLog(
+                AuditAction.UPDATE,
+                TABLE_NAME,
+                entity.getId(),
+                before,
+                snapshot(entity)
+        );
+    }
+
     private DmcRegistro findEntity(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Registro DMC no encontrado"));
+    }
+
+    private DmcRegistro findActiveEntity(Long id) {
+        DmcRegistro entity = findEntity(id);
+
+        if (!Boolean.TRUE.equals(entity.getActivo())) {
+            throw new ResourceNotFoundException("Registro DMC no encontrado");
+        }
+
+        return entity;
     }
 
     private void apply(DmcRegistro entity, DmcRequest request) {
@@ -135,23 +182,27 @@ public class DmcService {
         return new DmcResponse(
                 entity.getId(),
                 entity.getFecha(),
-                entity.getFuncionario().getId(),
-                entity.getFuncionario().getUsername(),
-                entity.getTipoDmc().getId(),
-                entity.getTipoDmc().getCodigo(),
-                entity.getTipoDmc().getNombre(),
-                entity.getEncuestador().getId(),
-                entity.getEncuestador().getNombre(),
+                entity.getFuncionario() != null ? entity.getFuncionario().getId() : null,
+                entity.getFuncionario() != null ? entity.getFuncionario().getUsername() : null,
+                entity.getTipoDmc() != null ? entity.getTipoDmc().getId() : null,
+                entity.getTipoDmc() != null ? entity.getTipoDmc().getCodigo() : null,
+                entity.getTipoDmc() != null ? entity.getTipoDmc().getNombre() : null,
+                entity.getEncuestador() != null ? entity.getEncuestador().getId() : null,
+                entity.getEncuestador() != null ? entity.getEncuestador().getNombre() : null,
                 entity.getCantidad(),
                 entity.getObservacion(),
-                entity.getBarrio().getId(),
-                entity.getBarrio().getNombre(),
-                entity.getBarrio().getComuna().getNombre()
+                entity.getBarrio() != null ? entity.getBarrio().getId() : null,
+                entity.getBarrio() != null ? entity.getBarrio().getNombre() : null,
+                entity.getBarrio() != null && entity.getBarrio().getComuna() != null
+                        ? entity.getBarrio().getComuna().getNombre()
+                        : null,
+                entity.getActivo()
         );
     }
 
     private Map<String, Object> snapshot(DmcRegistro entity) {
         Map<String, Object> data = new LinkedHashMap<>();
+
         data.put("id", entity.getId());
         data.put("fecha", entity.getFecha());
         data.put("funcionarioId", entity.getFuncionario() != null ? entity.getFuncionario().getId() : null);
@@ -164,7 +215,12 @@ public class DmcService {
         data.put("cantidad", entity.getCantidad());
         data.put("barrioId", entity.getBarrio() != null ? entity.getBarrio().getId() : null);
         data.put("barrioNombre", entity.getBarrio() != null ? entity.getBarrio().getNombre() : null);
+        data.put("comunaNombre", entity.getBarrio() != null && entity.getBarrio().getComuna() != null
+                ? entity.getBarrio().getComuna().getNombre()
+                : null);
         data.put("observacion", entity.getObservacion());
+        data.put("activo", entity.getActivo());
+
         return data;
     }
 }

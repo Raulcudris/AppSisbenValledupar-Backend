@@ -18,7 +18,8 @@ public interface DmcRegistroRepository extends JpaRepository<DmcRegistro, Long>,
     @Query("""
             select count(d)
             from DmcRegistro d
-            where (:fechaInicio is null or d.fecha >= :fechaInicio)
+            where d.activo = true
+              and (:fechaInicio is null or d.fecha >= :fechaInicio)
               and (:fechaFin is null or d.fecha <= :fechaFin)
             """)
     Long countInDateRange(
@@ -29,7 +30,8 @@ public interface DmcRegistroRepository extends JpaRepository<DmcRegistro, Long>,
     @Query("""
             select coalesce(sum(d.cantidad), 0)
             from DmcRegistro d
-            where (:fechaInicio is null or d.fecha >= :fechaInicio)
+            where d.activo = true
+              and (:fechaInicio is null or d.fecha >= :fechaInicio)
               and (:fechaFin is null or d.fecha <= :fechaFin)
             """)
     Long sumCantidadInDateRange(
@@ -40,7 +42,8 @@ public interface DmcRegistroRepository extends JpaRepository<DmcRegistro, Long>,
     @Query("""
             select coalesce(sum(d.cantidad), 0)
             from DmcRegistro d
-            where (:fechaInicio is null or d.fecha >= :fechaInicio)
+            where d.activo = true
+              and (:fechaInicio is null or d.fecha >= :fechaInicio)
               and (:fechaFin is null or d.fecha <= :fechaFin)
               and upper(d.tipoDmc.codigo) = upper(:codigo)
             """)
@@ -58,7 +61,8 @@ public interface DmcRegistroRepository extends JpaRepository<DmcRegistro, Long>,
                 coalesce(sum(d.cantidad), 0)
             )
             from DmcRegistro d
-            where (:fechaInicio is null or d.fecha >= :fechaInicio)
+            where d.activo = true
+              and (:fechaInicio is null or d.fecha >= :fechaInicio)
               and (:fechaFin is null or d.fecha <= :fechaFin)
             group by d.tipoDmc.id, d.tipoDmc.codigo, d.tipoDmc.nombre
             order by coalesce(sum(d.cantidad), 0) desc
@@ -76,7 +80,8 @@ public interface DmcRegistroRepository extends JpaRepository<DmcRegistro, Long>,
                 coalesce(sum(d.cantidad), 0)
             )
             from DmcRegistro d
-            where (:fechaInicio is null or d.fecha >= :fechaInicio)
+            where d.activo = true
+              and (:fechaInicio is null or d.fecha >= :fechaInicio)
               and (:fechaFin is null or d.fecha <= :fechaFin)
             group by d.encuestador.id, d.encuestador.nombre
             order by coalesce(sum(d.cantidad), 0) desc
@@ -94,7 +99,8 @@ public interface DmcRegistroRepository extends JpaRepository<DmcRegistro, Long>,
                 coalesce(sum(d.cantidad), 0)
             )
             from DmcRegistro d
-            where (:fechaInicio is null or d.fecha >= :fechaInicio)
+            where d.activo = true
+              and (:fechaInicio is null or d.fecha >= :fechaInicio)
               and (:fechaFin is null or d.fecha <= :fechaFin)
             group by d.funcionario.id, d.funcionario.username
             order by coalesce(sum(d.cantidad), 0) desc
@@ -112,7 +118,8 @@ public interface DmcRegistroRepository extends JpaRepository<DmcRegistro, Long>,
                 coalesce(sum(d.cantidad), 0)
             )
             from DmcRegistro d
-            where (:fechaInicio is null or d.fecha >= :fechaInicio)
+            where d.activo = true
+              and (:fechaInicio is null or d.fecha >= :fechaInicio)
               and (:fechaFin is null or d.fecha <= :fechaFin)
             group by d.barrio.id, d.barrio.nombre
             order by coalesce(sum(d.cantidad), 0) desc
@@ -130,7 +137,8 @@ public interface DmcRegistroRepository extends JpaRepository<DmcRegistro, Long>,
                 coalesce(sum(d.cantidad), 0)
             )
             from DmcRegistro d
-            where (:fechaInicio is null or d.fecha >= :fechaInicio)
+            where d.activo = true
+              and (:fechaInicio is null or d.fecha >= :fechaInicio)
               and (:fechaFin is null or d.fecha <= :fechaFin)
             group by d.barrio.comuna.id, d.barrio.comuna.codigo, d.barrio.comuna.nombre
             order by coalesce(sum(d.cantidad), 0) desc
