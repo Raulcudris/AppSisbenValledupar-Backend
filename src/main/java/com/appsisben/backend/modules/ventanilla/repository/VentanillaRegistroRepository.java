@@ -478,52 +478,54 @@ public interface VentanillaRegistroRepository extends JpaRepository<VentanillaRe
         group by v.fecha, f.id, f.username
         order by v.fecha asc, f.username asc
         """)
-List<VentanillaEmployeeDailyCount> countEmployeeDailyProductivity(
-        @Param("fechaInicio") LocalDate fechaInicio,
-        @Param("fechaFin") LocalDate fechaFin
-);
+    List<VentanillaEmployeeDailyCount> countEmployeeDailyProductivity(
+            @Param("fechaInicio") LocalDate fechaInicio,
+            @Param("fechaFin") LocalDate fechaFin
+    );
 
     @Query("""
-        SELECT new com.appsisben.backend.modules.reports.dto.VentanillaEmployeeDetailedPerformanceRow(
-            funcionario.id,
-            funcionario.username,
-            COUNT(v.id),
-            SUM(CASE WHEN estado.codigo = 'PENDIENTE' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN estado.codigo = 'REALIZADA' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN estado.codigo = 'APROBADA' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN estado.codigo = 'RECHAZADA' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN estado.codigo = 'CANCELADA' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN estado.codigo = 'REVISAR' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN v.extranjero = false THEN 1 ELSE 0 END),
-            SUM(CASE WHEN v.extranjero = true THEN 1 ELSE 0 END)
-        )
-        FROM VentanillaRegistro v
-        LEFT JOIN v.funcionario funcionario
-        LEFT JOIN v.estadoSolicitud estado
-        WHERE (:fechaInicio IS NULL OR v.fecha >= :fechaInicio)
-          AND (:fechaFin IS NULL OR v.fecha <= :fechaFin)
-        GROUP BY funcionario.id, funcionario.username
-        ORDER BY COUNT(v.id) DESC, funcionario.username ASC
-        """)
+            SELECT new com.appsisben.backend.modules.reports.dto.VentanillaEmployeeDetailedPerformanceRow(
+                funcionario.id,
+                funcionario.username,
+                COUNT(v.id),
+                SUM(CASE WHEN estado.codigo = 'PENDIENTE' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN estado.codigo = 'REALIZADA' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN estado.codigo = 'APROBADA' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN estado.codigo = 'RECHAZADA' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN estado.codigo = 'CANCELADA' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN estado.codigo = 'REVISAR' THEN 1 ELSE 0 END),
+                SUM(CASE WHEN v.extranjero = false THEN 1 ELSE 0 END),
+                SUM(CASE WHEN v.extranjero = true THEN 1 ELSE 0 END)
+            )
+            FROM VentanillaRegistro v
+            LEFT JOIN v.funcionario funcionario
+            LEFT JOIN v.estadoSolicitud estado
+            WHERE v.activo = true
+              AND (:fechaInicio IS NULL OR v.fecha >= :fechaInicio)
+              AND (:fechaFin IS NULL OR v.fecha <= :fechaFin)
+            GROUP BY funcionario.id, funcionario.username
+            ORDER BY COUNT(v.id) DESC, funcionario.username ASC
+            """)
     List<VentanillaEmployeeDetailedPerformanceRow> countEmployeeDetailedPerformance(
             @Param("fechaInicio") LocalDate fechaInicio,
             @Param("fechaFin") LocalDate fechaFin
     );
 
     @Query("""
-        SELECT new com.appsisben.backend.modules.reports.dto.VentanillaEmployeeDailyDetailResponse(
-            v.fecha,
-            funcionario.id,
-            funcionario.username,
-            COUNT(v.id)
-        )
-        FROM VentanillaRegistro v
-        LEFT JOIN v.funcionario funcionario
-        WHERE (:fechaInicio IS NULL OR v.fecha >= :fechaInicio)
-          AND (:fechaFin IS NULL OR v.fecha <= :fechaFin)
-        GROUP BY v.fecha, funcionario.id, funcionario.username
-        ORDER BY v.fecha ASC, COUNT(v.id) DESC, funcionario.username ASC
-        """)
+            SELECT new com.appsisben.backend.modules.reports.dto.VentanillaEmployeeDailyDetailResponse(
+                v.fecha,
+                funcionario.id,
+                funcionario.username,
+                COUNT(v.id)
+            )
+            FROM VentanillaRegistro v
+            LEFT JOIN v.funcionario funcionario
+            WHERE v.activo = true
+              AND (:fechaInicio IS NULL OR v.fecha >= :fechaInicio)
+              AND (:fechaFin IS NULL OR v.fecha <= :fechaFin)
+            GROUP BY v.fecha, funcionario.id, funcionario.username
+            ORDER BY v.fecha ASC, COUNT(v.id) DESC, funcionario.username ASC
+            """)
     List<VentanillaEmployeeDailyDetailResponse> countEmployeeDetailedPerformanceDaily(
             @Param("fechaInicio") LocalDate fechaInicio,
             @Param("fechaFin") LocalDate fechaFin

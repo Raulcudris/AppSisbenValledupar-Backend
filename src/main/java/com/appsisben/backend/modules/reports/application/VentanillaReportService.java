@@ -1,10 +1,13 @@
 package com.appsisben.backend.modules.reports.application;
+
+import com.appsisben.backend.modules.dmc.repository.DmcRegistroRepository;
 import com.appsisben.backend.modules.reports.dto.*;
 import com.appsisben.backend.modules.ventanilla.repository.VentanillaRegistroRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
@@ -20,6 +23,7 @@ import java.util.Map;
 public class VentanillaReportService {
 
     private final VentanillaRegistroRepository repository;
+    private final DmcRegistroRepository dmcRepository;
 
     @Transactional(readOnly = true)
     public VentanillaReportSummaryResponse summary(ReportDateRangeRequest request) {
@@ -203,6 +207,181 @@ public class VentanillaReportService {
         return response;
     }
 
+    @Transactional(readOnly = true)
+    public List<VentanillaEmployeeDetailedPerformanceResponse> employeeDetailedPerformance(
+            ReportDateRangeRequest request
+    ) {
+        LocalDate fechaInicio = fechaInicio(request);
+        LocalDate fechaFin = fechaFin(request);
+
+        List<VentanillaEmployeeDetailedPerformanceRow> employeeRows =
+                repository.countEmployeeDetailedPerformance(fechaInicio, fechaFin);
+
+        if (employeeRows.isEmpty()) {
+            return List.of();
+        }
+
+        List<VentanillaEmployeeDailyDetailResponse> dailyRows =
+                repository.countEmployeeDetailedPerformanceDaily(fechaInicio, fechaFin);
+
+        Map<Long, List<VentanillaEmployeeDailyDetailResponse>> dailyByEmployeeId = new HashMap<>();
+        Map<String, List<VentanillaEmployeeDailyDetailResponse>> dailyByEmployeeName = new HashMap<>();
+
+        for (VentanillaEmployeeDailyDetailResponse row : dailyRows) {
+            if (row.funcionarioId() != null) {
+                dailyByEmployeeId
+                        .computeIfAbsent(row.funcionarioId(), key -> new ArrayList<>())
+                        .add(row);
+            } else {
+                dailyByEmployeeName
+                        .computeIfAbsent(normalizeEmployeeName(row.funcionarioUsername()), key -> new ArrayList<>())
+                        .add(row);
+            }
+        }
+
+        long totalGeneral = employeeRows
+                .stream()
+                .map(VentanillaEmployeeDetailedPerformanceRow::totalAtenciones)
+                .map(this::safe)
+                .reduce(0L, Long::sum);
+
+        long totalDias = totalDiasHabiles(fechaInicio, fechaFin);
+
+        return employeeRows
+                .stream()
+                .map(row -> {
+                    Long totalAtenciones = safe(row.totalAtenciones());
+
+                    List<VentanillaEmployeeDailyDetailResponse> employeeDailyRows =
+                            row.funcionarioId() != null
+                                    ? dailyByEmployeeId.getOrDefault(row.funcionarioId(), List.of())
+                                    : dailyByEmployeeName.getOrDefault(
+                                    normalizeEmployeeName(row.funcionarioUsername()),
+                                    List.of()
+                            );
+
+                    return new VentanillaEmployeeDetailedPerformanceResponse(
+                            row.funcionarioId(),
+                            row.funcionarioUsername(),
+                            totalAtenciones,
+                            porcentaje(totalAtenciones, totalGeneral),
+                            promedioDiario(totalAtenciones, totalDias),
+                            safe(row.pendientes()),
+                            safe(row.realizadas()),
+                            safe(row.aprobadas()),
+                            safe(row.rechazadas()),
+                            safe(row.canceladas()),
+                            safe(row.revisar()),
+                            safe(row.nacionales()),
+                            safe(row.extranjeros()),
+                            employeeDailyRows
+                                    .stream()
+                                    .sorted(
+                                            Comparator
+                                                    .comparing(VentanillaEmployeeDailyDetailResponse::fecha)
+                                                    .thenComparing(
+                                                            VentanillaEmployeeDailyDetailResponse::funcionarioUsername,
+                                                            Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
+                                                    )
+                                    )
+                                    .toList()
+                    );
+                })
+                .sorted(
+                        Comparator
+                                .comparing(VentanillaEmployeeDetailedPerformanceResponse::totalAtenciones)
+                                .reversed()
+                                .thenComparing(
+                                        VentanillaEmployeeDetailedPerformanceResponse::funcionarioUsername,
+                                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
+                                )
+                )
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<DmcEncuestadorPerformanceResponse> dmcEncuestadoresDesempeno(
+            ReportDateRangeRequest request
+    ) {
+        return dmcRepository.countDmcEncuestadorPerformance(fechaInicio(request), fechaFin(request))
+                .stream()
+                .map(row -> {
+                    Long cargadas = safe(row.cargadas());
+                    Long efectivas = safe(row.efectivas());
+                    Long noEfectivas = Math.max(0L, cargadas - efectivas);
+                    Double cumplimiento = porcentaje(efectivas, cargadas);
+                    Long total = cargadas + efectivas;
+
+                    return new DmcEncuestadorPerformanceResponse(
+                            row.encuestadorId(),
+                            row.encuestadorNombre(),
+                            cargadas,
+                            efectivas,
+                            noEfectivas,
+                            cumplimiento,
+                            resolveDmcPerformanceLabel(cumplimiento),
+                            total
+                    );
+                })
+                .sorted(
+                        Comparator
+                                .comparing(DmcEncuestadorPerformanceResponse::total)
+                                .reversed()
+                                .thenComparing(
+                                        DmcEncuestadorPerformanceResponse::encuestadorNombre,
+                                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
+                                )
+                )
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<DmcComunaTotalResponse> dmcComunasTotales(
+            ReportDateRangeRequest request
+    ) {
+        return dmcRepository.countDmcComunaTotals(fechaInicio(request), fechaFin(request))
+                .stream()
+                .map(row -> {
+                    Long cargadas = safe(row.cargadas());
+                    Long descargadas = safe(row.descargadas());
+
+                    return new DmcComunaTotalResponse(
+                            row.comunaId(),
+                            row.comunaCodigo(),
+                            row.comunaNombre(),
+                            cargadas,
+                            descargadas,
+                            cargadas + descargadas
+                    );
+                })
+                .sorted(
+                        Comparator
+                                .comparing(DmcComunaTotalResponse::total)
+                                .reversed()
+                                .thenComparing(
+                                        DmcComunaTotalResponse::comunaNombre,
+                                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
+                                )
+                )
+                .toList();
+    }
+
+    private String resolveDmcPerformanceLabel(Double cumplimiento) {
+        if (cumplimiento == null) {
+            return "Bajo";
+        }
+
+        if (cumplimiento >= 90.0) {
+            return "Alto";
+        }
+
+        if (cumplimiento >= 70.0) {
+            return "Medio";
+        }
+
+        return "Bajo";
+    }
+
     private LocalDate fechaInicio(ReportDateRangeRequest request) {
         return request != null ? request.fechaInicio() : null;
     }
@@ -305,119 +484,6 @@ public class VentanillaReportService {
         return periodEnd.isAfter(reportEnd) ? reportEnd : periodEnd;
     }
 
-    private enum ProductivityGrouping {
-        SEMANAL,
-        MENSUAL
-    }
-
-    private record PeriodInfo(
-            String periodo,
-            LocalDate fechaInicio,
-            LocalDate fechaFin
-    ) {
-    }
-
-    private record ProductivityKey(
-            String periodo,
-            LocalDate fechaInicioPeriodo,
-            LocalDate fechaFinPeriodo,
-            Long funcionarioId,
-            String funcionarioUsername
-    ) {
-    }
-
-    @Transactional(readOnly = true)
-    public List<VentanillaEmployeeDetailedPerformanceResponse> employeeDetailedPerformance(
-            ReportDateRangeRequest request
-    ) {
-        LocalDate fechaInicio = fechaInicio(request);
-        LocalDate fechaFin = fechaFin(request);
-
-        List<VentanillaEmployeeDetailedPerformanceRow> employeeRows =
-                repository.countEmployeeDetailedPerformance(fechaInicio, fechaFin);
-
-        if (employeeRows.isEmpty()) {
-            return List.of();
-        }
-
-        List<VentanillaEmployeeDailyDetailResponse> dailyRows =
-                repository.countEmployeeDetailedPerformanceDaily(fechaInicio, fechaFin);
-
-        Map<Long, List<VentanillaEmployeeDailyDetailResponse>> dailyByEmployeeId = new HashMap<>();
-        Map<String, List<VentanillaEmployeeDailyDetailResponse>> dailyByEmployeeName = new HashMap<>();
-
-        for (VentanillaEmployeeDailyDetailResponse row : dailyRows) {
-            if (row.funcionarioId() != null) {
-                dailyByEmployeeId
-                        .computeIfAbsent(row.funcionarioId(), key -> new ArrayList<>())
-                        .add(row);
-            } else {
-                dailyByEmployeeName
-                        .computeIfAbsent(normalizeEmployeeName(row.funcionarioUsername()), key -> new ArrayList<>())
-                        .add(row);
-            }
-        }
-
-        long totalGeneral = employeeRows
-                .stream()
-                .map(VentanillaEmployeeDetailedPerformanceRow::totalAtenciones)
-                .map(this::safe)
-                .reduce(0L, Long::sum);
-
-        long totalDias = totalDiasHabiles(fechaInicio, fechaFin);
-
-        return employeeRows
-                .stream()
-                .map(row -> {
-                    Long totalAtenciones = safe(row.totalAtenciones());
-
-                    List<VentanillaEmployeeDailyDetailResponse> employeeDailyRows =
-                            row.funcionarioId() != null
-                                    ? dailyByEmployeeId.getOrDefault(row.funcionarioId(), List.of())
-                                    : dailyByEmployeeName.getOrDefault(
-                                    normalizeEmployeeName(row.funcionarioUsername()),
-                                    List.of()
-                            );
-
-                    return new VentanillaEmployeeDetailedPerformanceResponse(
-                            row.funcionarioId(),
-                            row.funcionarioUsername(),
-                            totalAtenciones,
-                            porcentaje(totalAtenciones, totalGeneral),
-                            promedioDiario(totalAtenciones, totalDias),
-                            safe(row.pendientes()),
-                            safe(row.realizadas()),
-                            safe(row.aprobadas()),
-                            safe(row.rechazadas()),
-                            safe(row.canceladas()),
-                            safe(row.revisar()),
-                            safe(row.nacionales()),
-                            safe(row.extranjeros()),
-                            employeeDailyRows
-                                    .stream()
-                                    .sorted(
-                                            Comparator
-                                                    .comparing(VentanillaEmployeeDailyDetailResponse::fecha)
-                                                    .thenComparing(
-                                                            VentanillaEmployeeDailyDetailResponse::funcionarioUsername,
-                                                            Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
-                                                    )
-                                    )
-                                    .toList()
-                    );
-                })
-                .sorted(
-                        Comparator
-                                .comparing(VentanillaEmployeeDetailedPerformanceResponse::totalAtenciones)
-                                .reversed()
-                                .thenComparing(
-                                        VentanillaEmployeeDetailedPerformanceResponse::funcionarioUsername,
-                                        Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)
-                                )
-                )
-                .toList();
-    }
-
     private String normalizeEmployeeName(String value) {
         return value == null ? "Sin funcionario" : value.trim().toLowerCase();
     }
@@ -441,5 +507,26 @@ public class VentanillaReportService {
         }
 
         return Math.max(1L, total);
+    }
+
+    private enum ProductivityGrouping {
+        SEMANAL,
+        MENSUAL
+    }
+
+    private record PeriodInfo(
+            String periodo,
+            LocalDate fechaInicio,
+            LocalDate fechaFin
+    ) {
+    }
+
+    private record ProductivityKey(
+            String periodo,
+            LocalDate fechaInicioPeriodo,
+            LocalDate fechaFinPeriodo,
+            Long funcionarioId,
+            String funcionarioUsername
+    ) {
     }
 }

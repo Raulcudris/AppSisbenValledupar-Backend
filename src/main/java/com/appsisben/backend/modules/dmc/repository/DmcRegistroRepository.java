@@ -1,6 +1,8 @@
 package com.appsisben.backend.modules.dmc.repository;
 
 import com.appsisben.backend.modules.dmc.domain.DmcRegistro;
+import com.appsisben.backend.modules.reports.dto.DmcComunaTotalRow;
+import com.appsisben.backend.modules.reports.dto.DmcEncuestadorPerformanceRow;
 import com.appsisben.backend.modules.reports.dto.ReportGroupResponse;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -144,6 +146,71 @@ public interface DmcRegistroRepository extends JpaRepository<DmcRegistro, Long>,
             order by coalesce(sum(d.cantidad), 0) desc
             """)
     List<ReportGroupResponse> sumCantidadByComuna(
+            @Param("fechaInicio") LocalDate fechaInicio,
+            @Param("fechaFin") LocalDate fechaFin
+    );
+
+    @Query("""
+            select new com.appsisben.backend.modules.reports.dto.DmcEncuestadorPerformanceRow(
+                d.encuestador.id,
+                d.encuestador.nombre,
+                coalesce(sum(
+                    case
+                        when upper(d.tipoDmc.codigo) in ('CARGADA', 'CARGADAS', 'CARGADO', 'CARGADOS')
+                        then d.cantidad
+                        else 0
+                    end
+                ), 0),
+                coalesce(sum(
+                    case
+                        when upper(d.tipoDmc.codigo) in ('DESCARGADA', 'DESCARGADAS', 'EFECTIVA', 'EFECTIVAS')
+                        then d.cantidad
+                        else 0
+                    end
+                ), 0)
+            )
+            from DmcRegistro d
+            where d.activo = true
+              and (:fechaInicio is null or d.fecha >= :fechaInicio)
+              and (:fechaFin is null or d.fecha <= :fechaFin)
+            group by d.encuestador.id, d.encuestador.nombre
+            order by coalesce(sum(d.cantidad), 0) desc, d.encuestador.nombre asc
+            """)
+    List<DmcEncuestadorPerformanceRow> countDmcEncuestadorPerformance(
+            @Param("fechaInicio") LocalDate fechaInicio,
+            @Param("fechaFin") LocalDate fechaFin
+    );
+
+    @Query("""
+            select new com.appsisben.backend.modules.reports.dto.DmcComunaTotalRow(
+                comuna.id,
+                coalesce(comuna.codigo, 'COMUNA_N/A'),
+                coalesce(comuna.nombre, 'COMUNA_N/A'),
+                coalesce(sum(
+                    case
+                        when upper(d.tipoDmc.codigo) in ('CARGADA', 'CARGADAS', 'CARGADO', 'CARGADOS')
+                        then d.cantidad
+                        else 0
+                    end
+                ), 0),
+                coalesce(sum(
+                    case
+                        when upper(d.tipoDmc.codigo) in ('DESCARGADA', 'DESCARGADAS', 'EFECTIVA', 'EFECTIVAS')
+                        then d.cantidad
+                        else 0
+                    end
+                ), 0)
+            )
+            from DmcRegistro d
+            left join d.barrio barrio
+            left join barrio.comuna comuna
+            where d.activo = true
+              and (:fechaInicio is null or d.fecha >= :fechaInicio)
+              and (:fechaFin is null or d.fecha <= :fechaFin)
+            group by comuna.id, comuna.codigo, comuna.nombre
+            order by coalesce(sum(d.cantidad), 0) desc, coalesce(comuna.nombre, 'COMUNA_N/A') asc
+            """)
+    List<DmcComunaTotalRow> countDmcComunaTotals(
             @Param("fechaInicio") LocalDate fechaInicio,
             @Param("fechaFin") LocalDate fechaFin
     );
