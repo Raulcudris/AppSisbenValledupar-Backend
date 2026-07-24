@@ -19,8 +19,10 @@ public final class AppRolePreAuthorize {
     public static final String CATALOG_READ =
             "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', " +
                     "'FUNCIONARIO_VENTANILLA', 'ROLE_FUNCIONARIO_VENTANILLA', " +
-                    "'FUNCIONARIO_DMC', 'ROLE_FUNCIONARIO_DMC', 'CONSULTA', 'ROLE_CONSULTA') " +
-                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_VENTANILLA', 'FUNCIONARIO_DMC', 'CONSULTA')";
+                    "'FUNCIONARIO_DMC', 'ROLE_FUNCIONARIO_DMC', " +
+                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER', " +
+                    "'CONSULTA', 'ROLE_CONSULTA') " +
+                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_VENTANILLA', 'FUNCIONARIO_DMC', 'FUNCIONARIO_CALLCENTER', 'CONSULTA')";
 
     public static final String CATALOG_WRITE =
             ADMIN_OR_SUPERVISOR;
@@ -50,6 +52,16 @@ public final class AppRolePreAuthorize {
             "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', " +
                     "'FUNCIONARIO_DMC', 'ROLE_FUNCIONARIO_DMC') " +
                     "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_DMC')";
+
+    public static final String CALLCENTER_READ =
+            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', " +
+                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER', 'CONSULTA', 'ROLE_CONSULTA') " +
+                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_CALLCENTER', 'CONSULTA')";
+
+    public static final String CALLCENTER_WRITE =
+            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', " +
+                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER') " +
+                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_CALLCENTER')";
 
     public static final String REPORT_READ =
             ADMIN_SUPERVISOR_OR_CONSULTA;
