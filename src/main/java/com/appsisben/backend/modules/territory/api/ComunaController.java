@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.territory.api;
-
 import com.appsisben.backend.modules.territory.application.ComunaService;
 import com.appsisben.backend.modules.territory.dto.ComunaRequest;
 import com.appsisben.backend.modules.territory.dto.ComunaResponse;
@@ -33,10 +32,17 @@ public class ComunaController {
     @GetMapping
     public ApiResponse<PageResponse<ComunaResponse>> findAll(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Boolean activo
     ) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("nombre").ascending());
-        return ApiResponse.ok(comunaService.findAll(pageable));
+        Pageable pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100),
+                Sort.by("nombre").ascending()
+        );
+
+        return ApiResponse.ok(comunaService.findAll(pageable, q, activo));
     }
 
     @PreAuthorize(AppRolePreAuthorize.TERRITORY_READ)

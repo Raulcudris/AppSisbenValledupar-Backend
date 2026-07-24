@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.catalogs.api;
-
 import com.appsisben.backend.modules.catalogs.application.EncuestadorService;
 import com.appsisben.backend.modules.catalogs.dto.EncuestadorRequest;
 import com.appsisben.backend.modules.catalogs.dto.EncuestadorResponse;

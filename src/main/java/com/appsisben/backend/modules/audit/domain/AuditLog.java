@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.audit.domain;
-
 import com.appsisben.backend.modules.users.domain.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -12,7 +11,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-
 import java.time.LocalDateTime;
 
 @Getter

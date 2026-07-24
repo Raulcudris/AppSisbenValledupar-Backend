@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.auth.application;
-
 import com.appsisben.backend.modules.audit.application.AuditService;
 import com.appsisben.backend.modules.audit.domain.AuditAction;
 import com.appsisben.backend.modules.auth.dto.AuthUserResponse;
@@ -20,7 +19,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;

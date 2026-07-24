@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.directory.api;
-
 import com.appsisben.backend.modules.directory.application.DirectoryContactService;
 import com.appsisben.backend.modules.directory.dto.DirectoryContactRequest;
 import com.appsisben.backend.modules.directory.dto.DirectoryContactResponse;

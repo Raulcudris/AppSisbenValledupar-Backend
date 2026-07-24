@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.auth.dto;
-
 import jakarta.validation.constraints.NotBlank;
 
 public record LoginRequest(

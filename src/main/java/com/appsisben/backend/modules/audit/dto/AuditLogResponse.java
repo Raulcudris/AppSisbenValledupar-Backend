@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.audit.dto;
-
 import java.time.LocalDateTime;
 
 public record AuditLogResponse(

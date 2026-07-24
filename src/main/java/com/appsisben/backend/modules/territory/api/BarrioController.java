@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.territory.api;
-
 import com.appsisben.backend.modules.territory.application.BarrioService;
 import com.appsisben.backend.modules.territory.dto.BarrioRequest;
 import com.appsisben.backend.modules.territory.dto.BarrioResponse;
@@ -33,10 +32,18 @@ public class BarrioController {
     @GetMapping
     public ApiResponse<PageResponse<BarrioResponse>> findAll(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Long comunaId,
+            @RequestParam(required = false) Boolean activo
     ) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("nombre").ascending());
-        return ApiResponse.ok(barrioService.findAll(pageable));
+        Pageable pageable = PageRequest.of(
+                Math.max(page, 0),
+                Math.min(Math.max(size, 1), 100),
+                Sort.by("nombre").ascending()
+        );
+
+        return ApiResponse.ok(barrioService.findAll(pageable, q, comunaId, activo));
     }
 
     @PreAuthorize(AppRolePreAuthorize.TERRITORY_READ)

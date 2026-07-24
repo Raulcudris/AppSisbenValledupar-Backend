@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.catalogs.application;
-
 import com.appsisben.backend.modules.catalogs.domain.Solicitud;
 import com.appsisben.backend.modules.catalogs.dto.SimpleCatalogRequest;
 import com.appsisben.backend.modules.catalogs.dto.SimpleCatalogResponse;
@@ -11,7 +10,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.List;
 
 @Service

@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.catalogs.api;
-
 import com.appsisben.backend.modules.catalogs.application.SolicitudService;
 import com.appsisben.backend.modules.catalogs.dto.SimpleCatalogRequest;
 import com.appsisben.backend.modules.catalogs.dto.SimpleCatalogResponse;

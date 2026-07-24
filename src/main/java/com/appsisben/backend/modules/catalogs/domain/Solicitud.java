@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.catalogs.domain;
-
 import com.appsisben.backend.shared.persistence.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

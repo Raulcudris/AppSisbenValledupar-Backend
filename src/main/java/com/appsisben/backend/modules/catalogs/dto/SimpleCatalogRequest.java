@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.catalogs.dto;
-
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 

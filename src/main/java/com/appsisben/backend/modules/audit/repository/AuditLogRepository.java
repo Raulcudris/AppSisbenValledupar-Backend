@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.audit.repository;
-
 import com.appsisben.backend.modules.audit.domain.AuditLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;

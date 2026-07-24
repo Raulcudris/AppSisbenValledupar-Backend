@@ -1,10 +1,8 @@
 package com.appsisben.backend.modules.audit.repository;
-
 import com.appsisben.backend.modules.audit.domain.AuditLog;
 import com.appsisben.backend.modules.audit.dto.AuditFilterRequest;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;

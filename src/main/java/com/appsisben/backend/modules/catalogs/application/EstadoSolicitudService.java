@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.catalogs.application;
-
 import com.appsisben.backend.modules.catalogs.domain.EstadoSolicitud;
 import com.appsisben.backend.modules.catalogs.dto.CodeCatalogRequest;
 import com.appsisben.backend.modules.catalogs.dto.CodeCatalogResponse;

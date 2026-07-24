@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.catalogs.api;
-
 import com.appsisben.backend.modules.catalogs.repository.CategoriaRepository;
 import com.appsisben.backend.modules.catalogs.repository.EncuestadorRepository;
 import com.appsisben.backend.modules.catalogs.repository.EstadoSolicitudRepository;
@@ -12,7 +11,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import java.util.LinkedHashMap;
 import java.util.Map;
 

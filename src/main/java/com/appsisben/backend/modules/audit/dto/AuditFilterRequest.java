@@ -1,7 +1,5 @@
 package com.appsisben.backend.modules.audit.dto;
-
 import org.springframework.format.annotation.DateTimeFormat;
-
 import java.time.LocalDate;
 
 public record AuditFilterRequest(

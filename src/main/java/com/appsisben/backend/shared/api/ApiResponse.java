@@ -1,5 +1,4 @@
 package com.appsisben.backend.shared.api;
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
