@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.callcenter.dto;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -11,12 +10,20 @@ public record CallCenterResponse(
         LocalTime horaLlamada,
         String tipoRegistro,
         String origenRegistro,
+
         Long ventanillaRegistroId,
         String ventanillaNumeroVentanilla,
         LocalDate ventanillaFecha,
 
         Long funcionarioId,
         String funcionarioUsername,
+
+        Long funcionarioCallcenterAsignadoId,
+        String funcionarioCallcenterAsignadoUsername,
+        String funcionarioCallcenterAsignadoNombre,
+        LocalDateTime fechaAsignacionCallcenter,
+        Long usuarioAsignaCallcenterId,
+        String usuarioAsignaCallcenterUsername,
 
         String cedulaSolicitante,
         String nombreCompleto,

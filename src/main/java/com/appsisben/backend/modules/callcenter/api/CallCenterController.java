@@ -1,12 +1,6 @@
 package com.appsisben.backend.modules.callcenter.api;
-
 import com.appsisben.backend.modules.callcenter.application.CallCenterService;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterCatalogResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterFilterRequest;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterRequest;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterSummaryResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaRequest;
+import com.appsisben.backend.modules.callcenter.dto.*;
 import com.appsisben.backend.security.AppRolePreAuthorize;
 import com.appsisben.backend.shared.api.ApiResponse;
 import com.appsisben.backend.shared.api.PageResponse;
@@ -56,6 +50,77 @@ public class CallCenterController {
     ) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("fechaLlamada").descending());
         return ApiResponse.ok(service.search(filter, pageable));
+    }
+
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGN_FUNCIONARIO)
+    @GetMapping("/pendientes-asignar-funcionario")
+    public ApiResponse<PageResponse<CallCenterResponse>> pendientesAsignarFuncionario(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Order.asc("fechaEncuestaProgramada"),
+                        Sort.Order.asc("fechaLlamada")
+                )
+        );
+
+        return ApiResponse.ok(service.pendientesAsignarFuncionario(pageable));
+    }
+
+    @PreAuthorize(
+            "hasAnyAuthority(" +
+                    "'ADMIN', 'ROLE_ADMIN', " +
+                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
+                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
+                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER'" +
+                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER', 'FUNCIONARIO_CALLCENTER')"
+    )
+    @GetMapping("/mis-registros-callcenter")
+    public ApiResponse<PageResponse<CallCenterResponse>> misRegistrosCallcenter(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        Pageable pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(
+                        Sort.Order.asc("fechaEncuestaProgramada"),
+                        Sort.Order.asc("fechaLlamada")
+                )
+        );
+
+        return ApiResponse.ok(service.misRegistrosCallcenter(pageable));
+    }
+
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGN_FUNCIONARIO)
+    @GetMapping("/catalogs/funcionarios-callcenter")
+    public ApiResponse<List<CallCenterUserOptionResponse>> funcionariosCallcenter() {
+        return ApiResponse.ok(service.findFuncionariosCallcenter());
+    }
+
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGN_FUNCIONARIO)
+    @PatchMapping("/asignar-funcionario-callcenter")
+    public ApiResponse<List<CallCenterResponse>> asignarFuncionarioCallcenter(
+            @Valid @RequestBody CallCenterAsignarFuncionarioRequest request
+    ) {
+        return ApiResponse.ok(
+                "Registros asignados al funcionario Call Center correctamente",
+                service.asignarFuncionarioCallcenter(request)
+        );
+    }
+
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGN_ENCUESTADOR)
+    @PatchMapping("/asignar-encuestador")
+    public ApiResponse<List<CallCenterResponse>> asignarEncuestador(
+            @Valid @RequestBody CallCenterAsignarEncuestadorRequest request
+    ) {
+        return ApiResponse.ok(
+                "Registros asignados al encuestador correctamente",
+                service.asignarEncuestador(request)
+        );
     }
 
     /*

@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.callcenter.domain;
-
 import com.appsisben.backend.modules.catalogs.domain.Encuestador;
 import com.appsisben.backend.modules.territory.domain.Barrio;
 import com.appsisben.backend.modules.users.domain.User;
@@ -13,7 +12,6 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -132,6 +130,17 @@ public class CallCenterRegistro extends BaseEntity {
 
     @Column(name = "activo", nullable = false)
     private Boolean activo = true;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "funcionario_callcenter_asignado_id")
+    private User funcionarioCallcenterAsignado;
+
+    @Column(name = "fecha_asignacion_callcenter")
+    private LocalDateTime fechaAsignacionCallcenter;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_asigna_callcenter_id")
+    private User usuarioAsignaCallcenter;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "creado_por_id")

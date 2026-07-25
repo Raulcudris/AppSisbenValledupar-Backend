@@ -18,6 +18,7 @@ public record CallCenterFilterRequest(
         Boolean solicitoNuevaEncuesta,
         Long barrioId,
         Long comunaId,
+        Long funcionarioCallcenterAsignadoId,
         Boolean disposicionRecibirEncuesta,
         Boolean explicoInformanteCalificado,
         Boolean activo,

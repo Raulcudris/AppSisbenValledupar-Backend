@@ -38,11 +38,19 @@ public final class CallCenterRegistroSpecification {
                 root.fetch("motivoNoDisposicion", JoinType.LEFT);
                 root.fetch("encuestadorAsignado", JoinType.LEFT);
                 root.fetch("ventanillaRegistro", JoinType.LEFT);
+                root.fetch("funcionarioCallcenterAsignado", JoinType.LEFT);
+                root.fetch("usuarioAsignaCallcenter", JoinType.LEFT);
                 query.distinct(true);
             }
 
             if (filter == null) {
                 return cb.and(predicate, cb.isTrue(root.get("activo")));
+            }
+            if (filter.funcionarioCallcenterAsignadoId() != null) {
+                predicate = cb.and(
+                        predicate,
+                        cb.equal(root.get("funcionarioCallcenterAsignado").get("id"), filter.funcionarioCallcenterAsignadoId())
+                );
             }
 
             if (filter.activo() != null) {
@@ -170,6 +178,25 @@ public final class CallCenterRegistroSpecification {
 
             return predicate;
         };
+    }
+
+    public static Specification<CallCenterRegistro> byFuncionarioCallcenterAsignado(Long userId) {
+        return (root, query, cb) -> cb.and(
+                cb.isTrue(root.get("activo")),
+                cb.equal(root.get("funcionarioCallcenterAsignado").get("id"), userId)
+        );
+    }
+
+    public static Specification<CallCenterRegistro> pendientesAsignarFuncionarioCallcenter() {
+        return (root, query, cb) -> cb.and(
+                cb.isTrue(root.get("activo")),
+                cb.isTrue(root.get("solicitoNuevaEncuesta")),
+                cb.or(
+                        cb.isFalse(root.get("encuestaRealizada")),
+                        cb.isNull(root.get("encuestaRealizada"))
+                ),
+                cb.isNull(root.get("funcionarioCallcenterAsignado"))
+        );
     }
 
     private static boolean hasText(String value) {

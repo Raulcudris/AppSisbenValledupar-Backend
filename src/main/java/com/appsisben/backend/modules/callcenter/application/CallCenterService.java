@@ -5,11 +5,14 @@ import com.appsisben.backend.modules.audit.domain.AuditAction;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterMotivoNoContacto;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterMotivoNoDisposicion;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterRegistro;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterAsignarEncuestadorRequest;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterAsignarFuncionarioRequest;
 import com.appsisben.backend.modules.callcenter.dto.CallCenterCatalogResponse;
 import com.appsisben.backend.modules.callcenter.dto.CallCenterFilterRequest;
 import com.appsisben.backend.modules.callcenter.dto.CallCenterRequest;
 import com.appsisben.backend.modules.callcenter.dto.CallCenterResponse;
 import com.appsisben.backend.modules.callcenter.dto.CallCenterSummaryResponse;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterUserOptionResponse;
 import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaRequest;
 import com.appsisben.backend.modules.callcenter.repository.CallCenterMotivoNoContactoRepository;
 import com.appsisben.backend.modules.callcenter.repository.CallCenterMotivoNoDisposicionRepository;
@@ -33,6 +36,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -55,13 +59,21 @@ public class CallCenterService {
 
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> findAll(Pageable pageable) {
-        Page<CallCenterRegistro> page = repository.findAll(CallCenterRegistroSpecification.activeOnly(), pageable);
+        Page<CallCenterRegistro> page = repository.findAll(
+                CallCenterRegistroSpecification.activeOnly(),
+                pageable
+        );
+
         return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
     }
 
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> search(CallCenterFilterRequest filter, Pageable pageable) {
-        Page<CallCenterRegistro> page = repository.findAll(CallCenterRegistroSpecification.byFilter(filter), pageable);
+        Page<CallCenterRegistro> page = repository.findAll(
+                CallCenterRegistroSpecification.byFilter(filter),
+                pageable
+        );
+
         return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
     }
 
@@ -76,8 +88,42 @@ public class CallCenterService {
                     pageable
             );
         } else {
-            page = repository.findAll(CallCenterRegistroSpecification.activeOnly(), pageable);
+            page = repository.findAll(
+                    CallCenterRegistroSpecification.activeOnly(),
+                    pageable
+            );
         }
+
+        return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<CallCenterResponse> pendientesAsignarFuncionario(Pageable pageable) {
+        Page<CallCenterRegistro> page = repository.findAll(
+                CallCenterRegistroSpecification.pendientesAsignarFuncionarioCallcenter(),
+                pageable
+        );
+
+        return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<CallCenterResponse> misRegistrosCallcenter(Pageable pageable) {
+        if (currentUserHasRole("FUNCIONARIO_CALLCENTER")) {
+            User user = currentUser();
+
+            Page<CallCenterRegistro> page = repository.findAll(
+                    CallCenterRegistroSpecification.byFuncionarioCallcenterAsignado(user.getId()),
+                    pageable
+            );
+
+            return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
+        }
+
+        Page<CallCenterRegistro> page = repository.findAll(
+                CallCenterRegistroSpecification.activeOnly(),
+                pageable
+        );
 
         return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
     }
@@ -100,6 +146,16 @@ public class CallCenterService {
         return motivoNoDisposicionRepository.findByActivoTrueOrderByNombreAsc()
                 .stream()
                 .map(this::toCatalogResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CallCenterUserOptionResponse> findFuncionariosCallcenter() {
+        return userRepository.findAll()
+                .stream()
+                .filter(this::isUserActivo)
+                .filter(user -> hasRoleCode(user, "FUNCIONARIO_CALLCENTER"))
+                .map(this::toUserOptionResponse)
                 .toList();
     }
 
@@ -147,6 +203,71 @@ public class CallCenterService {
         auditService.safeLog(AuditAction.UPDATE, TABLE_NAME, entity.getId(), before, snapshot(entity));
 
         return toResponse(entity);
+    }
+
+    @Transactional
+    public List<CallCenterResponse> asignarFuncionarioCallcenter(CallCenterAsignarFuncionarioRequest request) {
+        User funcionario = findUser(request.funcionarioCallcenterId());
+
+        if (!hasRoleCode(funcionario, "FUNCIONARIO_CALLCENTER")) {
+            throw new BusinessException("El usuario seleccionado no tiene rol FUNCIONARIO_CALLCENTER");
+        }
+
+        User user = currentUser();
+        List<CallCenterRegistro> registros = repository.findAllById(request.registroIds());
+
+        if (registros.size() != request.registroIds().size()) {
+            throw new BusinessException("Uno o más registros no existen");
+        }
+
+        for (CallCenterRegistro registro : registros) {
+            validateRegistroAsignableAFuncionarioCallcenter(registro, funcionario);
+
+            Map<String, Object> before = snapshot(registro);
+
+            registro.setFuncionarioCallcenterAsignado(funcionario);
+            registro.setFechaAsignacionCallcenter(LocalDateTime.now());
+            registro.setUsuarioAsignaCallcenter(user);
+            registro.setActualizadoPor(user);
+
+            auditService.safeLog(AuditAction.UPDATE, TABLE_NAME, registro.getId(), before, snapshot(registro));
+        }
+
+        return registros.stream().map(this::toResponse).toList();
+    }
+
+    @Transactional
+    public List<CallCenterResponse> asignarEncuestador(CallCenterAsignarEncuestadorRequest request) {
+        Encuestador encuestador = findEncuestador(request.encuestadorId());
+        User user = currentUser();
+        List<CallCenterRegistro> registros = repository.findAllById(request.registroIds());
+
+        if (registros.size() != request.registroIds().size()) {
+            throw new BusinessException("Uno o más registros no existen");
+        }
+
+        for (CallCenterRegistro registro : registros) {
+            validateRegistroAsignableAEncuestador(registro, encuestador, user);
+
+            Map<String, Object> before = snapshot(registro);
+
+            registro.setEncuestadorAsignado(encuestador);
+            registro.setEncuestadorProgramado(encuestador);
+
+            if (request.fechaEncuestaProgramada() != null) {
+                registro.setFechaEncuestaProgramada(request.fechaEncuestaProgramada());
+            }
+
+            if (!hasText(registro.getEstadoVisita())) {
+                registro.setEstadoVisita("PENDIENTE");
+            }
+
+            registro.setActualizadoPor(user);
+
+            auditService.safeLog(AuditAction.UPDATE, TABLE_NAME, registro.getId(), before, snapshot(registro));
+        }
+
+        return registros.stream().map(this::toResponse).toList();
     }
 
     @Transactional
@@ -221,7 +342,7 @@ public class CallCenterService {
     }
 
     private void apply(CallCenterRegistro entity, CallCenterRequest request, User user) {
-        validateRequest(request);
+        validateRequest(entity, request);
 
         VentanillaRegistro ventanillaRegistro = findVentanillaRegistro(request.ventanillaRegistroId());
         String origenRegistro = normalizeOrigenRegistro(request.origenRegistro(), ventanillaRegistro);
@@ -265,7 +386,7 @@ public class CallCenterService {
         entity.setExplicoInformanteCalificado(request.explicoInformanteCalificado());
     }
 
-    private void validateRequest(CallCenterRequest request) {
+    private void validateRequest(CallCenterRegistro entity, CallCenterRequest request) {
         if (request.ventanillaRegistroId() != null
                 && hasText(request.origenRegistro())
                 && !"VENTANILLA".equals(request.origenRegistro().trim().toUpperCase(Locale.ROOT))) {
@@ -292,6 +413,142 @@ public class CallCenterService {
             if (!hasMotivo) {
                 throw new BusinessException("Debe registrar el motivo por el cual no se confirmó la disposición");
             }
+        }
+
+        validateAsignacionNuevaEncuestaPendiente(entity, request);
+    }
+
+    private void validateAsignacionNuevaEncuestaPendiente(CallCenterRegistro entity, CallCenterRequest request) {
+        if (!Boolean.TRUE.equals(request.solicitoNuevaEncuesta())) {
+            return;
+        }
+
+        boolean hasEncuestador = request.encuestadorAsignadoId() != null
+                || request.encuestadorProgramadoId() != null;
+
+        if (!hasEncuestador) {
+            return;
+        }
+
+        validateCambioEncuestadorEnRegistroPendiente(entity, request);
+
+        String cedula = clean(request.cedulaSolicitante());
+        Long ventanillaRegistroId = request.ventanillaRegistroId();
+
+        if (!hasText(cedula) && ventanillaRegistroId == null) {
+            return;
+        }
+
+        List<CallCenterRegistro> pendientes = repository.findAsignacionNuevaEncuestaPendiente(
+                entity.getId(),
+                ventanillaRegistroId,
+                cedula
+        );
+
+        if (pendientes.isEmpty()) {
+            return;
+        }
+
+        CallCenterRegistro pendiente = pendientes.get(0);
+        String encuestadorNombre = getNombreEncuestadorAsignado(pendiente);
+
+        throw new BusinessException(
+                "Este usuario ya tiene una nueva encuesta pendiente asignada al encuestador "
+                        + encuestadorNombre
+                        + ". Mientras la encuesta no esté marcada como realizada, no puede asignarse a otro encuestador."
+        );
+    }
+
+    private void validateCambioEncuestadorEnRegistroPendiente(CallCenterRegistro entity, CallCenterRequest request) {
+        if (entity.getId() == null) {
+            return;
+        }
+
+        if (!Boolean.TRUE.equals(entity.getSolicitoNuevaEncuesta())) {
+            return;
+        }
+
+        if (Boolean.TRUE.equals(entity.getEncuestaRealizada())) {
+            return;
+        }
+
+        boolean currentHasEncuestador = entity.getEncuestadorAsignado() != null
+                || entity.getEncuestadorProgramado() != null;
+
+        if (!currentHasEncuestador) {
+            return;
+        }
+
+        boolean changedAsignado = request.encuestadorAsignadoId() != null
+                && entity.getEncuestadorAsignado() != null
+                && !request.encuestadorAsignadoId().equals(entity.getEncuestadorAsignado().getId());
+
+        boolean changedProgramado = request.encuestadorProgramadoId() != null
+                && entity.getEncuestadorProgramado() != null
+                && !request.encuestadorProgramadoId().equals(entity.getEncuestadorProgramado().getId());
+
+        boolean assigningNewWhenOnlyProgrammedExists = request.encuestadorAsignadoId() != null
+                && entity.getEncuestadorAsignado() == null
+                && entity.getEncuestadorProgramado() != null
+                && !request.encuestadorAsignadoId().equals(entity.getEncuestadorProgramado().getId());
+
+        boolean programmingNewWhenOnlyAssignedExists = request.encuestadorProgramadoId() != null
+                && entity.getEncuestadorProgramado() == null
+                && entity.getEncuestadorAsignado() != null
+                && !request.encuestadorProgramadoId().equals(entity.getEncuestadorAsignado().getId());
+
+        if (changedAsignado || changedProgramado || assigningNewWhenOnlyProgrammedExists || programmingNewWhenOnlyAssignedExists) {
+            throw new BusinessException(
+                    "Este usuario ya tiene una nueva encuesta pendiente asignada al encuestador "
+                            + getNombreEncuestadorAsignado(entity)
+                            + ". Mientras la encuesta no esté marcada como realizada, no puede asignarse a otro encuestador."
+            );
+        }
+    }
+
+    private void validateRegistroAsignableAFuncionarioCallcenter(CallCenterRegistro registro, User funcionario) {
+        if (!Boolean.TRUE.equals(registro.getActivo())) {
+            throw new BusinessException("Solo se pueden asignar registros activos");
+        }
+
+        if (!Boolean.TRUE.equals(registro.getSolicitoNuevaEncuesta())) {
+            throw new BusinessException("Solo se pueden asignar registros de nueva encuesta");
+        }
+
+        if (Boolean.TRUE.equals(registro.getEncuestaRealizada())) {
+            throw new BusinessException("No se puede asignar un registro con encuesta realizada");
+        }
+
+        if (registro.getFuncionarioCallcenterAsignado() != null
+                && !funcionario.getId().equals(registro.getFuncionarioCallcenterAsignado().getId())) {
+            throw new BusinessException(
+                    "El registro " + registro.getId() + " ya está asignado a otro funcionario Call Center"
+            );
+        }
+    }
+
+    private void validateRegistroAsignableAEncuestador(CallCenterRegistro registro, Encuestador encuestador, User user) {
+        if (currentUserHasRole("FUNCIONARIO_CALLCENTER")
+                && (registro.getFuncionarioCallcenterAsignado() == null
+                || !user.getId().equals(registro.getFuncionarioCallcenterAsignado().getId()))) {
+            throw new BusinessException(
+                    "El registro " + registro.getId() + " no está asignado al funcionario Call Center autenticado"
+            );
+        }
+
+        if (!Boolean.TRUE.equals(registro.getActivo())) {
+            throw new BusinessException("Solo se pueden asignar registros activos");
+        }
+
+        if (Boolean.TRUE.equals(registro.getEncuestaRealizada())) {
+            throw new BusinessException("No se puede asignar encuestador a una encuesta ya realizada");
+        }
+
+        if (registro.getEncuestadorAsignado() != null
+                && !encuestador.getId().equals(registro.getEncuestadorAsignado().getId())) {
+            throw new BusinessException(
+                    "El registro " + registro.getId() + " ya está asignado a otro encuestador"
+            );
         }
     }
 
@@ -335,6 +592,15 @@ public class CallCenterService {
                 .orElseThrow(() -> new ResourceNotFoundException("Registro de ventanilla no encontrado"));
     }
 
+    private User findUser(Long id) {
+        if (id == null) {
+            throw new BusinessException("Debe seleccionar un usuario");
+        }
+
+        return userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+    }
+
     private User currentUser() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
@@ -366,6 +632,12 @@ public class CallCenterService {
                 .stream()
                 .anyMatch(authority -> roleCode.equals(authority.getAuthority())
                         || ("ROLE_" + roleCode).equals(authority.getAuthority()));
+    }
+
+    private boolean hasRoleCode(User user, String roleCode) {
+        return user != null
+                && user.getRole() != null
+                && roleCode.equalsIgnoreCase(user.getRole().getCodigo());
     }
 
     private String normalizeTipoRegistro(String tipoRegistro) {
@@ -407,16 +679,65 @@ public class CallCenterService {
 
         if (
                 value.equals("PENDIENTE") ||
-                value.equals("PROGRAMADA") ||
-                value.equals("REALIZADA") ||
-                value.equals("NO_ATENDIDA") ||
-                value.equals("REPROGRAMADA") ||
-                value.equals("CANCELADA")
+                        value.equals("PROGRAMADA") ||
+                        value.equals("REALIZADA") ||
+                        value.equals("NO_ATENDIDA") ||
+                        value.equals("REPROGRAMADA") ||
+                        value.equals("CANCELADA")
         ) {
             return value;
         }
 
         throw new BusinessException("Estado de visita no válido");
+    }
+
+    private String getNombreEncuestadorAsignado(CallCenterRegistro entity) {
+        if (entity.getEncuestadorAsignado() != null && hasText(entity.getEncuestadorAsignado().getNombre())) {
+            return entity.getEncuestadorAsignado().getNombre();
+        }
+
+        if (entity.getEncuestadorProgramado() != null && hasText(entity.getEncuestadorProgramado().getNombre())) {
+            return entity.getEncuestadorProgramado().getNombre();
+        }
+
+        return "sin encuestador registrado";
+    }
+
+    private String fullName(User user) {
+        if (user == null) {
+            return null;
+        }
+
+        String nombres = user.getNombres() != null ? user.getNombres() : "";
+        String apellidos = user.getApellidos() != null ? user.getApellidos() : "";
+        String nombreCompleto = (nombres + " " + apellidos).trim();
+
+        return nombreCompleto.isBlank() ? user.getUsername() : nombreCompleto;
+    }
+
+    private CallCenterUserOptionResponse toUserOptionResponse(User user) {
+        return new CallCenterUserOptionResponse(
+                user.getId(),
+                user.getUsername(),
+                fullName(user),
+                user.getRole() != null ? user.getRole().getCodigo() : null,
+                isUserActivo(user)
+        );
+    }
+
+    private boolean isUserActivo(User user) {
+        if (user == null || user.getActivo() == null) {
+            return false;
+        }
+
+        String value = String.valueOf(user.getActivo()).trim().toUpperCase(Locale.ROOT);
+
+        return value.equals("TRUE")
+                || value.equals("1")
+                || value.equals("SI")
+                || value.equals("SÍ")
+                || value.equals("ACTIVO")
+                || value.equals("A");
     }
 
     private CallCenterResponse toResponse(CallCenterRegistro entity) {
@@ -433,6 +754,13 @@ public class CallCenterService {
 
                 entity.getFuncionario() != null ? entity.getFuncionario().getId() : null,
                 entity.getFuncionario() != null ? entity.getFuncionario().getUsername() : null,
+
+                entity.getFuncionarioCallcenterAsignado() != null ? entity.getFuncionarioCallcenterAsignado().getId() : null,
+                entity.getFuncionarioCallcenterAsignado() != null ? entity.getFuncionarioCallcenterAsignado().getUsername() : null,
+                fullName(entity.getFuncionarioCallcenterAsignado()),
+                entity.getFechaAsignacionCallcenter(),
+                entity.getUsuarioAsignaCallcenter() != null ? entity.getUsuarioAsignaCallcenter().getId() : null,
+                entity.getUsuarioAsignaCallcenter() != null ? entity.getUsuarioAsignaCallcenter().getUsername() : null,
 
                 entity.getCedulaSolicitante(),
                 entity.getNombreCompleto(),
@@ -488,11 +816,23 @@ public class CallCenterService {
     }
 
     private CallCenterCatalogResponse toCatalogResponse(CallCenterMotivoNoContacto entity) {
-        return new CallCenterCatalogResponse(entity.getId(), entity.getCodigo(), entity.getNombre(), entity.getDescripcion(), entity.getActivo());
+        return new CallCenterCatalogResponse(
+                entity.getId(),
+                entity.getCodigo(),
+                entity.getNombre(),
+                entity.getDescripcion(),
+                entity.getActivo()
+        );
     }
 
     private CallCenterCatalogResponse toCatalogResponse(CallCenterMotivoNoDisposicion entity) {
-        return new CallCenterCatalogResponse(entity.getId(), entity.getCodigo(), entity.getNombre(), entity.getDescripcion(), entity.getActivo());
+        return new CallCenterCatalogResponse(
+                entity.getId(),
+                entity.getCodigo(),
+                entity.getNombre(),
+                entity.getDescripcion(),
+                entity.getActivo()
+        );
     }
 
     private Map<String, Object> snapshot(CallCenterRegistro entity) {
@@ -507,6 +847,12 @@ public class CallCenterService {
         data.put("ventanillaRegistroId", entity.getVentanillaRegistro() != null ? entity.getVentanillaRegistro().getId() : null);
         data.put("funcionarioId", entity.getFuncionario() != null ? entity.getFuncionario().getId() : null);
         data.put("funcionarioUsername", entity.getFuncionario() != null ? entity.getFuncionario().getUsername() : null);
+        data.put("funcionarioCallcenterAsignadoId", entity.getFuncionarioCallcenterAsignado() != null ? entity.getFuncionarioCallcenterAsignado().getId() : null);
+        data.put("funcionarioCallcenterAsignadoUsername", entity.getFuncionarioCallcenterAsignado() != null ? entity.getFuncionarioCallcenterAsignado().getUsername() : null);
+        data.put("funcionarioCallcenterAsignadoNombre", fullName(entity.getFuncionarioCallcenterAsignado()));
+        data.put("fechaAsignacionCallcenter", entity.getFechaAsignacionCallcenter());
+        data.put("usuarioAsignaCallcenterId", entity.getUsuarioAsignaCallcenter() != null ? entity.getUsuarioAsignaCallcenter().getId() : null);
+        data.put("usuarioAsignaCallcenterUsername", entity.getUsuarioAsignaCallcenter() != null ? entity.getUsuarioAsignaCallcenter().getUsername() : null);
         data.put("cedulaSolicitante", entity.getCedulaSolicitante());
         data.put("nombreCompleto", entity.getNombreCompleto());
         data.put("telefono", entity.getTelefono());

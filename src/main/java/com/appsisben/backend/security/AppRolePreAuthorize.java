@@ -54,14 +54,37 @@ public final class AppRolePreAuthorize {
                     "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_DMC')";
 
     public static final String CALLCENTER_READ =
-            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER', 'CONSULTA', 'ROLE_CONSULTA') " +
-                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_CALLCENTER', 'CONSULTA')";
+            "hasAnyAuthority(" +
+                    "'ADMIN', 'ROLE_ADMIN', " +
+                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
+                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
+                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER', " +
+                    "'FUNCIONARIO_ENCUESTADOR', 'ROLE_FUNCIONARIO_ENCUESTADOR', " +
+                    "'CONSULTA', 'ROLE_CONSULTA'" +
+                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER', 'FUNCIONARIO_CALLCENTER', 'FUNCIONARIO_ENCUESTADOR', 'CONSULTA')";
 
     public static final String CALLCENTER_WRITE =
-            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER') " +
-                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_CALLCENTER')";
+            "hasAnyAuthority(" +
+                    "'ADMIN', 'ROLE_ADMIN', " +
+                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
+                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
+                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER'" +
+                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER', 'FUNCIONARIO_CALLCENTER')";
+
+    public static final String CALLCENTER_ASSIGN_FUNCIONARIO =
+            "hasAnyAuthority(" +
+                    "'ADMIN', 'ROLE_ADMIN', " +
+                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
+                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER'" +
+                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER')";
+
+    public static final String CALLCENTER_ASSIGN_ENCUESTADOR =
+            "hasAnyAuthority(" +
+                    "'ADMIN', 'ROLE_ADMIN', " +
+                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
+                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
+                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER'" +
+                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER', 'FUNCIONARIO_CALLCENTER')";
 
     public static final String REPORT_READ =
             ADMIN_SUPERVISOR_OR_CONSULTA;
