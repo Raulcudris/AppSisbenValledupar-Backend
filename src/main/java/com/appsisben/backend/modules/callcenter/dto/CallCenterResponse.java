@@ -9,6 +9,11 @@ public record CallCenterResponse(
         LocalDateTime marcaTemporal,
         LocalDate fechaLlamada,
         LocalTime horaLlamada,
+        String tipoRegistro,
+        String origenRegistro,
+        Long ventanillaRegistroId,
+        String ventanillaNumeroVentanilla,
+        LocalDate ventanillaFecha,
 
         Long funcionarioId,
         String funcionarioUsername,
@@ -48,6 +53,15 @@ public record CallCenterResponse(
         String encuestadorAsignadoNombre,
 
         Boolean explicoInformanteCalificado,
+        Boolean verificado,
+        String estadoVisita,
+        LocalDate fechaVisitaReal,
+        LocalTime horaVisitaReal,
+        Boolean encuestaRealizada,
+        String motivoNoEncuesta,
+        LocalDate fechaReprogramacion,
+        String observacionEncuestador,
+
         String observacion,
         Boolean activo
 ) {

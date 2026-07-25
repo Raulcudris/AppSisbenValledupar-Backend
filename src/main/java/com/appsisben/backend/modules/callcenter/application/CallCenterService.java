@@ -10,6 +10,7 @@ import com.appsisben.backend.modules.callcenter.dto.CallCenterFilterRequest;
 import com.appsisben.backend.modules.callcenter.dto.CallCenterRequest;
 import com.appsisben.backend.modules.callcenter.dto.CallCenterResponse;
 import com.appsisben.backend.modules.callcenter.dto.CallCenterSummaryResponse;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaRequest;
 import com.appsisben.backend.modules.callcenter.repository.CallCenterMotivoNoContactoRepository;
 import com.appsisben.backend.modules.callcenter.repository.CallCenterMotivoNoDisposicionRepository;
 import com.appsisben.backend.modules.callcenter.repository.CallCenterRegistroRepository;
@@ -20,6 +21,8 @@ import com.appsisben.backend.modules.territory.domain.Barrio;
 import com.appsisben.backend.modules.territory.repository.BarrioRepository;
 import com.appsisben.backend.modules.users.domain.User;
 import com.appsisben.backend.modules.users.repository.UserRepository;
+import com.appsisben.backend.modules.ventanilla.domain.VentanillaRegistro;
+import com.appsisben.backend.modules.ventanilla.repository.VentanillaRegistroRepository;
 import com.appsisben.backend.shared.api.PageResponse;
 import com.appsisben.backend.shared.exception.BusinessException;
 import com.appsisben.backend.shared.exception.ResourceNotFoundException;
@@ -32,6 +35,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -46,36 +50,36 @@ public class CallCenterService {
     private final UserRepository userRepository;
     private final EncuestadorRepository encuestadorRepository;
     private final BarrioRepository barrioRepository;
+    private final VentanillaRegistroRepository ventanillaRegistroRepository;
     private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> findAll(Pageable pageable) {
-        Page<CallCenterRegistro> page = repository.findAll(
-                CallCenterRegistroSpecification.activeOnly(),
-                pageable
-        );
-
-        List<CallCenterResponse> content = page.getContent()
-                .stream()
-                .map(this::toResponse)
-                .toList();
-
-        return PageResponse.from(page, content);
+        Page<CallCenterRegistro> page = repository.findAll(CallCenterRegistroSpecification.activeOnly(), pageable);
+        return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
     }
 
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> search(CallCenterFilterRequest filter, Pageable pageable) {
-        Page<CallCenterRegistro> page = repository.findAll(
-                CallCenterRegistroSpecification.byFilter(filter),
-                pageable
-        );
+        Page<CallCenterRegistro> page = repository.findAll(CallCenterRegistroSpecification.byFilter(filter), pageable);
+        return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
+    }
 
-        List<CallCenterResponse> content = page.getContent()
-                .stream()
-                .map(this::toResponse)
-                .toList();
+    @Transactional(readOnly = true)
+    public PageResponse<CallCenterResponse> misAsignaciones(Pageable pageable) {
+        Page<CallCenterRegistro> page;
 
-        return PageResponse.from(page, content);
+        if (currentUserHasRole("FUNCIONARIO_ENCUESTADOR")) {
+            Encuestador encuestador = currentEncuestador();
+            page = repository.findAll(
+                    CallCenterRegistroSpecification.byEncuestadorAsignadoOrProgramado(encuestador.getId()),
+                    pageable
+            );
+        } else {
+            page = repository.findAll(CallCenterRegistroSpecification.activeOnly(), pageable);
+        }
+
+        return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
     }
 
     @Transactional(readOnly = true)
@@ -104,26 +108,12 @@ public class CallCenterService {
         List<CallCenterRegistro> all = repository.findAll();
 
         long total = all.size();
-        long conectadas = all.stream()
-                .filter(item -> Boolean.TRUE.equals(item.getLlamadaConectada()))
-                .count();
-        long noConectadas = all.stream()
-                .filter(item -> Boolean.FALSE.equals(item.getLlamadaConectada()))
-                .count();
-        long activos = all.stream()
-                .filter(item -> Boolean.TRUE.equals(item.getActivo()))
-                .count();
-        long inactivos = all.stream()
-                .filter(item -> !Boolean.TRUE.equals(item.getActivo()))
-                .count();
+        long conectadas = all.stream().filter(item -> Boolean.TRUE.equals(item.getLlamadaConectada())).count();
+        long noConectadas = all.stream().filter(item -> Boolean.FALSE.equals(item.getLlamadaConectada())).count();
+        long activos = all.stream().filter(item -> Boolean.TRUE.equals(item.getActivo())).count();
+        long inactivos = all.stream().filter(item -> !Boolean.TRUE.equals(item.getActivo())).count();
 
-        return new CallCenterSummaryResponse(
-                total,
-                conectadas,
-                noConectadas,
-                activos,
-                inactivos
-        );
+        return new CallCenterSummaryResponse(total, conectadas, noConectadas, activos, inactivos);
     }
 
     @Transactional
@@ -134,18 +124,15 @@ public class CallCenterService {
         entity.setFuncionario(user);
         entity.setCreadoPor(user);
         entity.setActivo(true);
+        entity.setTipoRegistro("LLAMADA");
+        entity.setOrigenRegistro("MANUAL");
+        entity.setEstadoVisita("PENDIENTE");
 
         apply(entity, request, user);
 
         CallCenterRegistro saved = repository.save(entity);
 
-        auditService.safeLog(
-                AuditAction.CREATE,
-                TABLE_NAME,
-                saved.getId(),
-                null,
-                snapshot(saved)
-        );
+        auditService.safeLog(AuditAction.CREATE, TABLE_NAME, saved.getId(), null, snapshot(saved));
 
         return toResponse(saved);
     }
@@ -157,13 +144,47 @@ public class CallCenterService {
 
         apply(entity, request, currentUser());
 
-        auditService.safeLog(
-                AuditAction.UPDATE,
-                TABLE_NAME,
-                entity.getId(),
-                before,
-                snapshot(entity)
-        );
+        auditService.safeLog(AuditAction.UPDATE, TABLE_NAME, entity.getId(), before, snapshot(entity));
+
+        return toResponse(entity);
+    }
+
+    @Transactional
+    public CallCenterResponse updateVisita(Long id, CallCenterVisitaRequest request) {
+        CallCenterRegistro entity = findEntity(id);
+        User user = currentUser();
+
+        if (currentUserHasRole("FUNCIONARIO_ENCUESTADOR")) {
+            Encuestador encuestador = currentEncuestador();
+
+            boolean assigned = entity.getEncuestadorAsignado() != null
+                    && encuestador.getId().equals(entity.getEncuestadorAsignado().getId());
+
+            boolean programmed = entity.getEncuestadorProgramado() != null
+                    && encuestador.getId().equals(entity.getEncuestadorProgramado().getId());
+
+            if (!assigned && !programmed) {
+                throw new BusinessException("El registro no está asignado al encuestador autenticado");
+            }
+        }
+
+        Map<String, Object> before = snapshot(entity);
+
+        entity.setEstadoVisita(cleanEstadoVisita(request.estadoVisita()));
+        entity.setFechaVisitaReal(request.fechaVisitaReal());
+        entity.setHoraVisitaReal(request.horaVisitaReal());
+        entity.setEncuestaRealizada(request.encuestaRealizada());
+        entity.setMotivoNoEncuesta(clean(request.motivoNoEncuesta()));
+        entity.setFechaReprogramacion(request.fechaReprogramacion());
+        entity.setObservacionEncuestador(clean(request.observacionEncuestador()));
+
+        if (request.verificado() != null) {
+            entity.setVerificado(request.verificado());
+        }
+
+        entity.setActualizadoPor(user);
+
+        auditService.safeLog(AuditAction.UPDATE, TABLE_NAME, entity.getId(), before, snapshot(entity));
 
         return toResponse(entity);
     }
@@ -176,13 +197,7 @@ public class CallCenterService {
         entity.setActivo(true);
         entity.setActualizadoPor(currentUser());
 
-        auditService.safeLog(
-                AuditAction.ACTIVATE,
-                TABLE_NAME,
-                entity.getId(),
-                before,
-                snapshot(entity)
-        );
+        auditService.safeLog(AuditAction.UPDATE, TABLE_NAME, entity.getId(), before, snapshot(entity));
 
         return toResponse(entity);
     }
@@ -195,13 +210,7 @@ public class CallCenterService {
         entity.setActivo(false);
         entity.setActualizadoPor(currentUser());
 
-        auditService.safeLog(
-                AuditAction.DEACTIVATE,
-                TABLE_NAME,
-                entity.getId(),
-                before,
-                snapshot(entity)
-        );
+        auditService.safeLog(AuditAction.UPDATE, TABLE_NAME, entity.getId(), before, snapshot(entity));
 
         return toResponse(entity);
     }
@@ -214,15 +223,27 @@ public class CallCenterService {
     private void apply(CallCenterRegistro entity, CallCenterRequest request, User user) {
         validateRequest(request);
 
+        VentanillaRegistro ventanillaRegistro = findVentanillaRegistro(request.ventanillaRegistroId());
+        String origenRegistro = normalizeOrigenRegistro(request.origenRegistro(), ventanillaRegistro);
+
         entity.setMarcaTemporal(request.marcaTemporal());
         entity.setFechaLlamada(request.fechaLlamada());
         entity.setHoraLlamada(request.horaLlamada());
+        entity.setTipoRegistro(normalizeTipoRegistro(request.tipoRegistro()));
+        entity.setOrigenRegistro(origenRegistro);
+        entity.setVentanillaRegistro(ventanillaRegistro);
+
         entity.setCedulaSolicitante(clean(request.cedulaSolicitante()));
         entity.setNombreCompleto(upper(request.nombreCompleto()));
         entity.setTelefono(clean(request.telefono()));
         entity.setLlamadaConectada(request.llamadaConectada());
         entity.setObservacion(clean(request.observacion()));
+        entity.setVerificado(request.verificado());
         entity.setActualizadoPor(user);
+
+        if (!hasText(entity.getEstadoVisita())) {
+            entity.setEstadoVisita("PENDIENTE");
+        }
 
         if (request.activo() != null) {
             entity.setActivo(request.activo());
@@ -245,9 +266,19 @@ public class CallCenterService {
     }
 
     private void validateRequest(CallCenterRequest request) {
+        if (request.ventanillaRegistroId() != null
+                && hasText(request.origenRegistro())
+                && !"VENTANILLA".equals(request.origenRegistro().trim().toUpperCase(Locale.ROOT))) {
+            throw new BusinessException("Si se relaciona un registro de ventanilla, el origen debe ser VENTANILLA");
+        }
+
+        if ("VENTANILLA".equalsIgnoreCase(clean(request.origenRegistro()))
+                && request.ventanillaRegistroId() == null) {
+            throw new BusinessException("Debe seleccionar un registro de ventanilla para el origen VENTANILLA");
+        }
+
         if (Boolean.FALSE.equals(request.llamadaConectada())) {
-            boolean hasMotivo = request.motivoNoContactoId() != null
-                    || hasText(request.motivoNoContactoTexto());
+            boolean hasMotivo = request.motivoNoContactoId() != null || hasText(request.motivoNoContactoTexto());
 
             if (!hasMotivo) {
                 throw new BusinessException("Debe registrar el motivo por el cual no se logró conectar la llamada");
@@ -256,8 +287,7 @@ public class CallCenterService {
 
         if (Boolean.TRUE.equals(request.llamadaConectada())
                 && Boolean.FALSE.equals(request.disposicionRecibirEncuesta())) {
-            boolean hasMotivo = request.motivoNoDisposicionId() != null
-                    || hasText(request.motivoNoDisposicionTexto());
+            boolean hasMotivo = request.motivoNoDisposicionId() != null || hasText(request.motivoNoDisposicionTexto());
 
             if (!hasMotivo) {
                 throw new BusinessException("Debe registrar el motivo por el cual no se confirmó la disposición");
@@ -271,39 +301,38 @@ public class CallCenterService {
     }
 
     private CallCenterMotivoNoContacto findMotivoNoContacto(Long id) {
-        if (id == null) {
-            return null;
-        }
+        if (id == null) return null;
 
         return motivoNoContactoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Motivo de no contacto no encontrado"));
     }
 
     private CallCenterMotivoNoDisposicion findMotivoNoDisposicion(Long id) {
-        if (id == null) {
-            return null;
-        }
+        if (id == null) return null;
 
         return motivoNoDisposicionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Motivo de no disposición no encontrado"));
     }
 
     private Encuestador findEncuestador(Long id) {
-        if (id == null) {
-            return null;
-        }
+        if (id == null) return null;
 
         return encuestadorRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Encuestador no encontrado"));
     }
 
     private Barrio findBarrio(Long id) {
-        if (id == null) {
-            return null;
-        }
+        if (id == null) return null;
 
         return barrioRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Barrio no encontrado"));
+    }
+
+    private VentanillaRegistro findVentanillaRegistro(Long id) {
+        if (id == null) return null;
+
+        return ventanillaRegistroRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Registro de ventanilla no encontrado"));
     }
 
     private User currentUser() {
@@ -317,12 +346,90 @@ public class CallCenterService {
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario autenticado no encontrado"));
     }
 
+    private Encuestador currentEncuestador() {
+        User user = currentUser();
+
+        if (!hasText(user.getDocumento())) {
+            throw new BusinessException("El usuario autenticado no tiene documento registrado");
+        }
+
+        return encuestadorRepository.findFirstByDocumento(user.getDocumento())
+                .orElseThrow(() -> new BusinessException(
+                        "El usuario autenticado no está vinculado a un encuestador por documento"
+                ));
+    }
+
+    private boolean currentUserHasRole(String roleCode) {
+        return SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getAuthorities()
+                .stream()
+                .anyMatch(authority -> roleCode.equals(authority.getAuthority())
+                        || ("ROLE_" + roleCode).equals(authority.getAuthority()));
+    }
+
+    private String normalizeTipoRegistro(String tipoRegistro) {
+        String value = hasText(tipoRegistro)
+                ? tipoRegistro.trim().toUpperCase(Locale.ROOT)
+                : "LLAMADA";
+
+        if ("LLAMADA".equals(value) || "BASE_ENCUESTADOR".equals(value)) {
+            return value;
+        }
+
+        throw new BusinessException("Tipo de registro no válido");
+    }
+
+    private String normalizeOrigenRegistro(String origenRegistro, VentanillaRegistro ventanillaRegistro) {
+        String value = hasText(origenRegistro)
+                ? origenRegistro.trim().toUpperCase(Locale.ROOT)
+                : null;
+
+        if (ventanillaRegistro != null) {
+            return "VENTANILLA";
+        }
+
+        if (value == null) {
+            return "MANUAL";
+        }
+
+        if ("VENTANILLA".equals(value) || "MANUAL".equals(value) || "IMPORTACION".equals(value)) {
+            return value;
+        }
+
+        throw new BusinessException("Origen de registro no válido");
+    }
+
+    private String cleanEstadoVisita(String estadoVisita) {
+        String value = hasText(estadoVisita)
+                ? estadoVisita.trim().toUpperCase(Locale.ROOT)
+                : "PENDIENTE";
+
+        if (
+                value.equals("PENDIENTE") ||
+                value.equals("PROGRAMADA") ||
+                value.equals("REALIZADA") ||
+                value.equals("NO_ATENDIDA") ||
+                value.equals("REPROGRAMADA") ||
+                value.equals("CANCELADA")
+        ) {
+            return value;
+        }
+
+        throw new BusinessException("Estado de visita no válido");
+    }
+
     private CallCenterResponse toResponse(CallCenterRegistro entity) {
         return new CallCenterResponse(
                 entity.getId(),
                 entity.getMarcaTemporal(),
                 entity.getFechaLlamada(),
                 entity.getHoraLlamada(),
+                entity.getTipoRegistro(),
+                entity.getOrigenRegistro(),
+                entity.getVentanillaRegistro() != null ? entity.getVentanillaRegistro().getId() : null,
+                entity.getVentanillaRegistro() != null ? entity.getVentanillaRegistro().getNumeroVentanilla() : null,
+                entity.getVentanillaRegistro() != null ? entity.getVentanillaRegistro().getFecha() : null,
 
                 entity.getFuncionario() != null ? entity.getFuncionario().getId() : null,
                 entity.getFuncionario() != null ? entity.getFuncionario().getUsername() : null,
@@ -366,29 +473,26 @@ public class CallCenterService {
                 entity.getEncuestadorAsignado() != null ? entity.getEncuestadorAsignado().getNombre() : null,
 
                 entity.getExplicoInformanteCalificado(),
+                entity.getVerificado(),
+                entity.getEstadoVisita(),
+                entity.getFechaVisitaReal(),
+                entity.getHoraVisitaReal(),
+                entity.getEncuestaRealizada(),
+                entity.getMotivoNoEncuesta(),
+                entity.getFechaReprogramacion(),
+                entity.getObservacionEncuestador(),
+
                 entity.getObservacion(),
                 entity.getActivo()
         );
     }
 
     private CallCenterCatalogResponse toCatalogResponse(CallCenterMotivoNoContacto entity) {
-        return new CallCenterCatalogResponse(
-                entity.getId(),
-                entity.getCodigo(),
-                entity.getNombre(),
-                entity.getDescripcion(),
-                entity.getActivo()
-        );
+        return new CallCenterCatalogResponse(entity.getId(), entity.getCodigo(), entity.getNombre(), entity.getDescripcion(), entity.getActivo());
     }
 
     private CallCenterCatalogResponse toCatalogResponse(CallCenterMotivoNoDisposicion entity) {
-        return new CallCenterCatalogResponse(
-                entity.getId(),
-                entity.getCodigo(),
-                entity.getNombre(),
-                entity.getDescripcion(),
-                entity.getActivo()
-        );
+        return new CallCenterCatalogResponse(entity.getId(), entity.getCodigo(), entity.getNombre(), entity.getDescripcion(), entity.getActivo());
     }
 
     private Map<String, Object> snapshot(CallCenterRegistro entity) {
@@ -398,6 +502,9 @@ public class CallCenterService {
         data.put("marcaTemporal", entity.getMarcaTemporal());
         data.put("fechaLlamada", entity.getFechaLlamada());
         data.put("horaLlamada", entity.getHoraLlamada());
+        data.put("tipoRegistro", entity.getTipoRegistro());
+        data.put("origenRegistro", entity.getOrigenRegistro());
+        data.put("ventanillaRegistroId", entity.getVentanillaRegistro() != null ? entity.getVentanillaRegistro().getId() : null);
         data.put("funcionarioId", entity.getFuncionario() != null ? entity.getFuncionario().getId() : null);
         data.put("funcionarioUsername", entity.getFuncionario() != null ? entity.getFuncionario().getUsername() : null);
         data.put("cedulaSolicitante", entity.getCedulaSolicitante());
@@ -405,26 +512,26 @@ public class CallCenterService {
         data.put("telefono", entity.getTelefono());
         data.put("llamadaConectada", entity.getLlamadaConectada());
         data.put("motivoNoContactoId", entity.getMotivoNoContacto() != null ? entity.getMotivoNoContacto().getId() : null);
-        data.put("motivoNoContactoNombre", entity.getMotivoNoContacto() != null ? entity.getMotivoNoContacto().getNombre() : null);
         data.put("motivoNoContactoTexto", entity.getMotivoNoContactoTexto());
         data.put("encuestadorProgramadoId", entity.getEncuestadorProgramado() != null ? entity.getEncuestadorProgramado().getId() : null);
-        data.put("encuestadorProgramadoNombre", entity.getEncuestadorProgramado() != null ? entity.getEncuestadorProgramado().getNombre() : null);
         data.put("fechaEncuestaProgramada", entity.getFechaEncuestaProgramada());
         data.put("solicitoNuevaEncuesta", entity.getSolicitoNuevaEncuesta());
         data.put("direccionTexto", entity.getDireccionTexto());
         data.put("barrioId", entity.getBarrio() != null ? entity.getBarrio().getId() : null);
-        data.put("barrioNombre", entity.getBarrio() != null ? entity.getBarrio().getNombre() : null);
-        data.put("comunaNombre", entity.getBarrio() != null && entity.getBarrio().getComuna() != null
-                ? entity.getBarrio().getComuna().getNombre()
-                : null);
         data.put("fechaAplicacionInformada", entity.getFechaAplicacionInformada());
         data.put("disposicionRecibirEncuesta", entity.getDisposicionRecibirEncuesta());
         data.put("motivoNoDisposicionId", entity.getMotivoNoDisposicion() != null ? entity.getMotivoNoDisposicion().getId() : null);
-        data.put("motivoNoDisposicionNombre", entity.getMotivoNoDisposicion() != null ? entity.getMotivoNoDisposicion().getNombre() : null);
         data.put("motivoNoDisposicionTexto", entity.getMotivoNoDisposicionTexto());
         data.put("encuestadorAsignadoId", entity.getEncuestadorAsignado() != null ? entity.getEncuestadorAsignado().getId() : null);
-        data.put("encuestadorAsignadoNombre", entity.getEncuestadorAsignado() != null ? entity.getEncuestadorAsignado().getNombre() : null);
         data.put("explicoInformanteCalificado", entity.getExplicoInformanteCalificado());
+        data.put("verificado", entity.getVerificado());
+        data.put("estadoVisita", entity.getEstadoVisita());
+        data.put("fechaVisitaReal", entity.getFechaVisitaReal());
+        data.put("horaVisitaReal", entity.getHoraVisitaReal());
+        data.put("encuestaRealizada", entity.getEncuestaRealizada());
+        data.put("motivoNoEncuesta", entity.getMotivoNoEncuesta());
+        data.put("fechaReprogramacion", entity.getFechaReprogramacion());
+        data.put("observacionEncuestador", entity.getObservacionEncuestador());
         data.put("observacion", entity.getObservacion());
         data.put("activo", entity.getActivo());
 
@@ -436,7 +543,7 @@ public class CallCenterService {
     }
 
     private String upper(String value) {
-        return hasText(value) ? value.trim().replaceAll("\\s+", " ").toUpperCase() : null;
+        return hasText(value) ? value.trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT) : null;
     }
 
     private boolean hasText(String value) {

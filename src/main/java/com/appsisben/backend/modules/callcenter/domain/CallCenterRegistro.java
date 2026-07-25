@@ -3,6 +3,7 @@ package com.appsisben.backend.modules.callcenter.domain;
 import com.appsisben.backend.modules.catalogs.domain.Encuestador;
 import com.appsisben.backend.modules.territory.domain.Barrio;
 import com.appsisben.backend.modules.users.domain.User;
+import com.appsisben.backend.modules.ventanilla.domain.VentanillaRegistro;
 import com.appsisben.backend.shared.persistence.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -31,6 +32,16 @@ public class CallCenterRegistro extends BaseEntity {
 
     @Column(name = "hora_llamada")
     private LocalTime horaLlamada;
+
+    @Column(name = "tipo_registro", nullable = false, length = 40)
+    private String tipoRegistro = "LLAMADA";
+
+    @Column(name = "origen_registro", nullable = false, length = 40)
+    private String origenRegistro = "MANUAL";
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ventanilla_registro_id")
+    private VentanillaRegistro ventanillaRegistro;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "funcionario_id", nullable = false)
@@ -91,6 +102,30 @@ public class CallCenterRegistro extends BaseEntity {
 
     @Column(name = "explico_informante_calificado")
     private Boolean explicoInformanteCalificado;
+
+    @Column(name = "verificado")
+    private Boolean verificado;
+
+    @Column(name = "estado_visita", nullable = false, length = 40)
+    private String estadoVisita = "PENDIENTE";
+
+    @Column(name = "fecha_visita_real")
+    private LocalDate fechaVisitaReal;
+
+    @Column(name = "hora_visita_real")
+    private LocalTime horaVisitaReal;
+
+    @Column(name = "encuesta_realizada")
+    private Boolean encuestaRealizada;
+
+    @Column(name = "motivo_no_encuesta", length = 500)
+    private String motivoNoEncuesta;
+
+    @Column(name = "fecha_reprogramacion")
+    private LocalDate fechaReprogramacion;
+
+    @Column(name = "observacion_encuestador", columnDefinition = "TEXT")
+    private String observacionEncuestador;
 
     @Column(name = "observacion", columnDefinition = "TEXT")
     private String observacion;

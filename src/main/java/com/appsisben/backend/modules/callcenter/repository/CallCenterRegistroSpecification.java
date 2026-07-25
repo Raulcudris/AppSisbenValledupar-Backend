@@ -16,19 +16,33 @@ public final class CallCenterRegistroSpecification {
         return (root, query, cb) -> cb.isTrue(root.get("activo"));
     }
 
+    public static Specification<CallCenterRegistro> byEncuestadorAsignadoOrProgramado(Long encuestadorId) {
+        return (root, query, cb) -> cb.and(
+                cb.isTrue(root.get("activo")),
+                cb.or(
+                        cb.equal(root.get("encuestadorAsignado").get("id"), encuestadorId),
+                        cb.equal(root.get("encuestadorProgramado").get("id"), encuestadorId)
+                )
+        );
+    }
+
     public static Specification<CallCenterRegistro> byFilter(CallCenterFilterRequest filter) {
         return (root, query, cb) -> {
             var predicate = cb.conjunction();
 
-            root.fetch("funcionario", JoinType.LEFT);
-            root.fetch("motivoNoContacto", JoinType.LEFT);
-            root.fetch("encuestadorProgramado", JoinType.LEFT);
-            root.fetch("barrio", JoinType.LEFT).fetch("comuna", JoinType.LEFT);
-            root.fetch("motivoNoDisposicion", JoinType.LEFT);
-            root.fetch("encuestadorAsignado", JoinType.LEFT);
+            if (query != null && Long.class != query.getResultType() && long.class != query.getResultType()) {
+                root.fetch("funcionario", JoinType.LEFT);
+                root.fetch("motivoNoContacto", JoinType.LEFT);
+                root.fetch("encuestadorProgramado", JoinType.LEFT);
+                root.fetch("barrio", JoinType.LEFT).fetch("comuna", JoinType.LEFT);
+                root.fetch("motivoNoDisposicion", JoinType.LEFT);
+                root.fetch("encuestadorAsignado", JoinType.LEFT);
+                root.fetch("ventanillaRegistro", JoinType.LEFT);
+                query.distinct(true);
+            }
 
             if (filter == null) {
-                return predicate;
+                return cb.and(predicate, cb.isTrue(root.get("activo")));
             }
 
             if (filter.activo() != null) {
@@ -50,24 +64,15 @@ public final class CallCenterRegistroSpecification {
             }
 
             if (hasText(filter.cedulaSolicitante())) {
-                predicate = cb.and(predicate, cb.like(
-                        cb.lower(root.get("cedulaSolicitante")),
-                        like(filter.cedulaSolicitante())
-                ));
+                predicate = cb.and(predicate, cb.like(cb.lower(root.get("cedulaSolicitante")), like(filter.cedulaSolicitante())));
             }
 
             if (hasText(filter.nombreCompleto())) {
-                predicate = cb.and(predicate, cb.like(
-                        cb.lower(root.get("nombreCompleto")),
-                        like(filter.nombreCompleto())
-                ));
+                predicate = cb.and(predicate, cb.like(cb.lower(root.get("nombreCompleto")), like(filter.nombreCompleto())));
             }
 
             if (hasText(filter.telefono())) {
-                predicate = cb.and(predicate, cb.like(
-                        cb.lower(root.get("telefono")),
-                        like(filter.telefono())
-                ));
+                predicate = cb.and(predicate, cb.like(cb.lower(root.get("telefono")), like(filter.telefono())));
             }
 
             if (filter.llamadaConectada() != null) {
@@ -114,6 +119,39 @@ public final class CallCenterRegistroSpecification {
                 predicate = cb.and(predicate, cb.equal(root.get("explicoInformanteCalificado"), filter.explicoInformanteCalificado()));
             }
 
+            if (hasText(filter.tipoRegistro())) {
+                predicate = cb.and(predicate, cb.equal(
+                        cb.upper(root.get("tipoRegistro")),
+                        filter.tipoRegistro().trim().toUpperCase(Locale.ROOT)
+                ));
+            }
+
+            if (hasText(filter.origenRegistro())) {
+                predicate = cb.and(predicate, cb.equal(
+                        cb.upper(root.get("origenRegistro")),
+                        filter.origenRegistro().trim().toUpperCase(Locale.ROOT)
+                ));
+            }
+
+            if (filter.ventanillaRegistroId() != null) {
+                predicate = cb.and(predicate, cb.equal(root.get("ventanillaRegistro").get("id"), filter.ventanillaRegistroId()));
+            }
+
+            if (filter.verificado() != null) {
+                predicate = cb.and(predicate, cb.equal(root.get("verificado"), filter.verificado()));
+            }
+
+            if (hasText(filter.estadoVisita())) {
+                predicate = cb.and(predicate, cb.equal(
+                        cb.upper(root.get("estadoVisita")),
+                        filter.estadoVisita().trim().toUpperCase(Locale.ROOT)
+                ));
+            }
+
+            if (filter.encuestaRealizada() != null) {
+                predicate = cb.and(predicate, cb.equal(root.get("encuestaRealizada"), filter.encuestaRealizada()));
+            }
+
             if (hasText(filter.q())) {
                 String value = like(filter.q());
 
@@ -123,7 +161,8 @@ public final class CallCenterRegistroSpecification {
                         cb.like(cb.lower(root.get("telefono")), value),
                         cb.like(cb.lower(root.get("direccionTexto")), value),
                         cb.like(cb.lower(root.get("motivoNoContactoTexto")), value),
-                        cb.like(cb.lower(root.get("motivoNoDisposicionTexto")), value)
+                        cb.like(cb.lower(root.get("motivoNoDisposicionTexto")), value),
+                        cb.like(cb.lower(root.get("observacionEncuestador")), value)
                 );
 
                 predicate = cb.and(predicate, qPredicate);

@@ -1,7 +1,11 @@
 package com.appsisben.backend.modules.catalogs.domain;
+import com.appsisben.backend.modules.users.domain.User;
 import com.appsisben.backend.shared.persistence.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -24,4 +28,7 @@ private String telefono;
 @Column(name = "activo", nullable = false)
 private Boolean activo = true;
 
+@ManyToOne(fetch = FetchType.LAZY)
+@JoinColumn(name = "usuario_id")
+private User usuario;
 }

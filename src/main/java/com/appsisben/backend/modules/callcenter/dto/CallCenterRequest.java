@@ -16,6 +16,14 @@ public record CallCenterRequest(
 
         LocalTime horaLlamada,
 
+        @Size(max = 40, message = "El tipo de registro no puede superar los 40 caracteres")
+        String tipoRegistro,
+
+        @Size(max = 40, message = "El origen del registro no puede superar los 40 caracteres")
+        String origenRegistro,
+
+        Long ventanillaRegistroId,
+
         @NotBlank(message = "La cédula del solicitante es obligatoria")
         @Size(max = 30, message = "La cédula no puede superar los 30 caracteres")
         String cedulaSolicitante,
@@ -53,6 +61,7 @@ public record CallCenterRequest(
 
         Long encuestadorAsignadoId,
         Boolean explicoInformanteCalificado,
+        Boolean verificado,
         String observacion,
         Boolean activo
 ) {

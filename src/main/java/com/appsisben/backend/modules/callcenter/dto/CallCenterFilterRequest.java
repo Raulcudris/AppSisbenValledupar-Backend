@@ -21,6 +21,12 @@ public record CallCenterFilterRequest(
         Boolean disposicionRecibirEncuesta,
         Boolean explicoInformanteCalificado,
         Boolean activo,
-        String q
+        String q,
+        String tipoRegistro,
+        String origenRegistro,
+        Long ventanillaRegistroId,
+        Boolean verificado,
+        String estadoVisita,
+        Boolean encuestaRealizada
 ) {
 }
