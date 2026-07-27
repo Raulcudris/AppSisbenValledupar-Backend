@@ -1,4 +1,5 @@
 package com.appsisben.backend.modules.callcenter.domain;
+
 import com.appsisben.backend.modules.catalogs.domain.Encuestador;
 import com.appsisben.backend.modules.territory.domain.Barrio;
 import com.appsisben.backend.modules.users.domain.User;
@@ -36,6 +37,44 @@ public class CallCenterRegistro extends BaseEntity {
 
     @Column(name = "origen_registro", nullable = false, length = 40)
     private String origenRegistro = "MANUAL";
+
+    /**
+     * Tipo de solicitud que origina el caso de Call Center.
+     *
+     * Ejemplos funcionales:
+     * NUEVA_ENCUESTA, INCLUSION, VERIFICACION.
+     */
+    @Column(name = "tipo_solicitud_callcenter", length = 60)
+    private String tipoSolicitudCallcenter;
+
+    /**
+     * Estado central del caso maestro de Call Center.
+     *
+     * Este campo permite conocer en qué punto del flujo se encuentra el caso:
+     * pendiente de enrutamiento, asignado, en llamada, pendiente de visita,
+     * visita realizada, cerrado o cancelado.
+     */
+    @Column(name = "estado_caso", nullable = false, length = 60)
+    private String estadoCaso = "PENDIENTE_ENRUTAMIENTO";
+
+    /**
+     * Fecha y hora de cierre del caso, cuando aplique.
+     */
+    @Column(name = "fecha_cierre")
+    private LocalDateTime fechaCierre;
+
+    /**
+     * Motivo o descripción del cierre del caso.
+     */
+    @Column(name = "motivo_cierre", length = 500)
+    private String motivoCierre;
+
+    /**
+     * Usuario que realizó el cierre del caso.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "usuario_cierre_id")
+    private User usuarioCierre;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ventanilla_registro_id")
