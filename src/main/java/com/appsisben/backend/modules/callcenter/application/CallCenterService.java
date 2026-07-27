@@ -32,6 +32,7 @@ import com.appsisben.backend.shared.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,7 +60,7 @@ public class CallCenterService {
 
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> findAll(Pageable pageable) {
-        Page<CallCenterRegistro> page = repository.findAll(
+        Page<CallCenterRegistro> page = findPageForCurrentUser(
                 CallCenterRegistroSpecification.activeOnly(),
                 pageable
         );
@@ -69,7 +70,7 @@ public class CallCenterService {
 
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> search(CallCenterFilterRequest filter, Pageable pageable) {
-        Page<CallCenterRegistro> page = repository.findAll(
+        Page<CallCenterRegistro> page = findPageForCurrentUser(
                 CallCenterRegistroSpecification.byFilter(filter),
                 pageable
         );
@@ -85,6 +86,12 @@ public class CallCenterService {
             Encuestador encuestador = currentEncuestador();
             page = repository.findAll(
                     CallCenterRegistroSpecification.byEncuestadorAsignadoOrProgramado(encuestador.getId()),
+                    pageable
+            );
+        } else if (currentUserHasRole("FUNCIONARIO_CALLCENTER")) {
+            User user = currentUser();
+            page = repository.findAll(
+                    CallCenterRegistroSpecification.byFuncionarioCallcenterAsignado(user.getId()),
                     pageable
             );
         } else {
@@ -130,7 +137,10 @@ public class CallCenterService {
 
     @Transactional(readOnly = true)
     public CallCenterResponse findById(Long id) {
-        return toResponse(findEntity(id));
+        CallCenterRegistro entity = findEntity(id);
+        validateCurrentFuncionarioCallcenterCanAccess(entity);
+
+        return toResponse(entity);
     }
 
     @Transactional(readOnly = true)
@@ -161,7 +171,7 @@ public class CallCenterService {
 
     @Transactional(readOnly = true)
     public CallCenterSummaryResponse summary() {
-        List<CallCenterRegistro> all = repository.findAll();
+        List<CallCenterRegistro> all = findSummaryRecordsForCurrentUser();
 
         long total = all.size();
         long conectadas = all.stream().filter(item -> Boolean.TRUE.equals(item.getLlamadaConectada())).count();
@@ -184,6 +194,12 @@ public class CallCenterService {
         entity.setOrigenRegistro("MANUAL");
         entity.setEstadoVisita("PENDIENTE");
 
+        if (currentUserHasRole("FUNCIONARIO_CALLCENTER")) {
+            entity.setFuncionarioCallcenterAsignado(user);
+            entity.setFechaAsignacionCallcenter(LocalDateTime.now());
+            entity.setUsuarioAsignaCallcenter(user);
+        }
+
         apply(entity, request, user);
 
         CallCenterRegistro saved = repository.save(entity);
@@ -196,6 +212,8 @@ public class CallCenterService {
     @Transactional
     public CallCenterResponse update(Long id, CallCenterRequest request) {
         CallCenterRegistro entity = findEntity(id);
+        validateCurrentFuncionarioCallcenterCanAccess(entity);
+
         Map<String, Object> before = snapshot(entity);
 
         apply(entity, request, currentUser());
@@ -275,6 +293,8 @@ public class CallCenterService {
         CallCenterRegistro entity = findEntity(id);
         User user = currentUser();
 
+        validateCurrentFuncionarioCallcenterCanAccess(entity);
+
         if (currentUserHasRole("FUNCIONARIO_ENCUESTADOR")) {
             Encuestador encuestador = currentEncuestador();
 
@@ -313,6 +333,8 @@ public class CallCenterService {
     @Transactional
     public CallCenterResponse activate(Long id) {
         CallCenterRegistro entity = findEntity(id);
+        validateCurrentFuncionarioCallcenterCanAccess(entity);
+
         Map<String, Object> before = snapshot(entity);
 
         entity.setActivo(true);
@@ -326,6 +348,8 @@ public class CallCenterService {
     @Transactional
     public CallCenterResponse deactivate(Long id) {
         CallCenterRegistro entity = findEntity(id);
+        validateCurrentFuncionarioCallcenterCanAccess(entity);
+
         Map<String, Object> before = snapshot(entity);
 
         entity.setActivo(false);
@@ -548,6 +572,50 @@ public class CallCenterService {
                 && !encuestador.getId().equals(registro.getEncuestadorAsignado().getId())) {
             throw new BusinessException(
                     "El registro " + registro.getId() + " ya está asignado a otro encuestador"
+            );
+        }
+    }
+
+    private Page<CallCenterRegistro> findPageForCurrentUser(
+            Specification<CallCenterRegistro> specification,
+            Pageable pageable
+    ) {
+        if (currentUserHasRole("FUNCIONARIO_CALLCENTER")) {
+            User user = currentUser();
+
+            specification = specification.and(
+                    CallCenterRegistroSpecification.byFuncionarioCallcenterAsignado(user.getId())
+            );
+        }
+
+        return repository.findAll(specification, pageable);
+    }
+
+    private List<CallCenterRegistro> findSummaryRecordsForCurrentUser() {
+        if (currentUserHasRole("FUNCIONARIO_CALLCENTER")) {
+            User user = currentUser();
+
+            return repository.findAll(
+                    CallCenterRegistroSpecification.byFuncionarioCallcenterAsignado(user.getId())
+            );
+        }
+
+        return repository.findAll();
+    }
+
+    private void validateCurrentFuncionarioCallcenterCanAccess(CallCenterRegistro registro) {
+        if (!currentUserHasRole("FUNCIONARIO_CALLCENTER")) {
+            return;
+        }
+
+        User user = currentUser();
+
+        boolean assignedToCurrentUser = registro.getFuncionarioCallcenterAsignado() != null
+                && user.getId().equals(registro.getFuncionarioCallcenterAsignado().getId());
+
+        if (!assignedToCurrentUser) {
+            throw new BusinessException(
+                    "El registro no está asignado al funcionario Call Center autenticado"
             );
         }
     }
