@@ -93,8 +93,14 @@ public class CallCenterRegistro extends BaseEntity {
     @Column(name = "telefono", length = 30)
     private String telefono;
 
-    @Column(name = "llamada_conectada", nullable = false)
-    private Boolean llamadaConectada = false;
+    /**
+     * Indica si la llamada fue conectada.
+     *
+     * Puede ser null cuando el caso apenas se crea desde Ventanilla
+     * o manualmente y todavía no existe una gestión telefónica registrada.
+     */
+    @Column(name = "llamada_conectada")
+    private Boolean llamadaConectada;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "motivo_no_contacto_id")

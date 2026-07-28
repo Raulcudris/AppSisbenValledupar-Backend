@@ -1,8 +1,19 @@
 package com.appsisben.backend.modules.callcenter.dto;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
+/**
+ * DTO de respuesta para los registros del módulo Call Center.
+ *
+ * Este DTO expone la información principal del caso maestro, los datos
+ * legacy de llamada y visita, la asignación al funcionario Call Center
+ * y los campos del flujo formal del caso.
+ *
+ * Los campos del flujo formal permiten que el frontend identifique:
+ * estado del caso, tipo de solicitud, cierre del caso y usuario que cerró.
+ */
 public record CallCenterResponse(
         Long id,
         LocalDateTime marcaTemporal,
@@ -70,6 +81,44 @@ public record CallCenterResponse(
         String observacionEncuestador,
 
         String observacion,
+
+        /**
+         * Estado formal del caso Call Center.
+         *
+         * Ejemplos:
+         * PENDIENTE_ENRUTAMIENTO, ASIGNADO_CALLCENTER,
+         * EN_GESTION_LLAMADA, VISITA_PROGRAMADA, CERRADO.
+         */
+        String estadoCaso,
+
+        /**
+         * Tipo de solicitud que originó el caso.
+         *
+         * Ejemplos:
+         * NUEVA_ENCUESTA, INCLUSION, VERIFICACION, OTRO.
+         */
+        String tipoSolicitudCallcenter,
+
+        /**
+         * Fecha y hora en que se cerró el caso, cuando aplique.
+         */
+        LocalDateTime fechaCierre,
+
+        /**
+         * Motivo o descripción del cierre del caso, cuando aplique.
+         */
+        String motivoCierre,
+
+        /**
+         * Identificador del usuario que cerró el caso, cuando aplique.
+         */
+        Long usuarioCierreId,
+
+        /**
+         * Nombre de usuario que cerró el caso, cuando aplique.
+         */
+        String usuarioCierreUsername,
+
         Boolean activo
 ) {
 }

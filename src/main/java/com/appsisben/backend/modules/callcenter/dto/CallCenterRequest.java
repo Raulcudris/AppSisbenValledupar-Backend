@@ -8,10 +8,17 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
+/**
+ * DTO de solicitud para crear o actualizar casos del módulo Call Center.
+ *
+ * Este DTO soporta el flujo legacy de llamada y visita, y también el flujo
+ * formal donde el caso nace desde Ventanilla o desde registro manual como
+ * pendiente de enrutamiento.
+ */
 public record CallCenterRequest(
         LocalDateTime marcaTemporal,
 
-        @NotNull(message = "La fecha de llamada es obligatoria")
+        @NotNull(message = "La fecha del caso es obligatoria")
         LocalDate fechaLlamada,
 
         LocalTime horaLlamada,
@@ -35,7 +42,12 @@ public record CallCenterRequest(
         @Size(max = 30, message = "El teléfono no puede superar los 30 caracteres")
         String telefono,
 
-        @NotNull(message = "Debe indicar si la llamada fue conectada")
+        /**
+         * Indica si la llamada fue conectada.
+         *
+         * Puede ser null cuando el caso apenas se crea desde Ventanilla
+         * y todavía no existe una gestión de llamada registrada.
+         */
         Boolean llamadaConectada,
 
         Long motivoNoContactoId,
@@ -62,6 +74,19 @@ public record CallCenterRequest(
         Long encuestadorAsignadoId,
         Boolean explicoInformanteCalificado,
         Boolean verificado,
+
+        /**
+         * Estado formal del caso Call Center.
+         *
+         * Ejemplos: PENDIENTE_ENRUTAMIENTO, ASIGNADO_CALLCENTER,
+         * EN_GESTION_LLAMADA, VISITA_PROGRAMADA, CERRADO.
+         */
+        @Size(max = 60, message = "El estado del caso no puede superar los 60 caracteres")
+        String estadoCaso,
+
+        @Size(max = 60, message = "El tipo de solicitud Call Center no puede superar los 60 caracteres")
+        String tipoSolicitudCallcenter,
+
         String observacion,
         Boolean activo
 ) {
