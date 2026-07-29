@@ -1,23 +1,12 @@
 package com.appsisben.backend.modules.callcenter.application;
-
 import com.appsisben.backend.modules.callcenter.domain.CallCenterGestionLlamada;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterMotivoNoContacto;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterMotivoNoDisposicion;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterRegistro;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterResultadoLlamada;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterVisita;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterGestionLlamadaRequest;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterGestionLlamadaResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterResultadoLlamadaResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaAsignacionRequest;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaResultadoRequest;
-import com.appsisben.backend.modules.callcenter.repository.CallCenterGestionLlamadaRepository;
-import com.appsisben.backend.modules.callcenter.repository.CallCenterMotivoNoContactoRepository;
-import com.appsisben.backend.modules.callcenter.repository.CallCenterMotivoNoDisposicionRepository;
-import com.appsisben.backend.modules.callcenter.repository.CallCenterRegistroRepository;
-import com.appsisben.backend.modules.callcenter.repository.CallCenterResultadoLlamadaRepository;
-import com.appsisben.backend.modules.callcenter.repository.CallCenterVisitaRepository;
+import com.appsisben.backend.modules.callcenter.dto.*;
+import com.appsisben.backend.modules.callcenter.repository.*;
 import com.appsisben.backend.modules.catalogs.domain.Encuestador;
 import com.appsisben.backend.modules.catalogs.repository.EncuestadorRepository;
 import com.appsisben.backend.modules.users.domain.User;
@@ -28,11 +17,13 @@ import com.appsisben.backend.shared.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Locale;
@@ -51,10 +42,11 @@ public class CallCenterWorkflowService {
 
     private static final String ESTADO_ASIGNADO_ENCUESTADOR = "ASIGNADO_ENCUESTADOR";
     private static final String ESTADO_VISITA_PROGRAMADA = "VISITA_PROGRAMADA";
-    private static final String ESTADO_VISITA_REALIZADA = "VISITA_REALIZADA";
     private static final String ESTADO_VISITA_NO_ATENDIDA = "VISITA_NO_ATENDIDA";
     private static final String ESTADO_REPROGRAMADO = "REPROGRAMADO";
     private static final String ESTADO_CANCELADO = "CANCELADO";
+    private static final String ESTADO_CERRADO = "CERRADO";
+    private static final String MOTIVO_CIERRE_ENCUESTA_REALIZADA = "Encuesta realizada por encuestador";
 
     private final CallCenterRegistroRepository callCenterRegistroRepository;
     private final CallCenterGestionLlamadaRepository gestionLlamadaRepository;
@@ -218,26 +210,52 @@ public class CallCenterWorkflowService {
      * Lista las visitas asignadas al usuario autenticado cuando es encuestador.
      * Para perfiles administrativos retorna todas las visitas activas.
      *
+     * <p>La consulta aplica filtros dinámicos sobre la visita y sobre el caso
+     * maestro asociado. Esto permite que la pantalla de Mis asignaciones filtre
+     * desde base de datos y no solamente sobre los registros cargados en la página.</p>
+     *
+     * @param filter filtros de búsqueda.
      * @param pageable configuración de paginación.
      * @return página de visitas.
      */
     @Transactional(readOnly = true)
-    public PageResponse<CallCenterVisitaResponse> misVisitas(Pageable pageable) {
+    public PageResponse<CallCenterVisitaResponse> misVisitas(
+            CallCenterVisitaFilterRequest filter,
+            Pageable pageable
+    ) {
         User user = currentUser();
-        Page<CallCenterVisita> page;
+
+        Specification<CallCenterVisita> specification = CallCenterVisitaSpecification
+                .activeOnly()
+                .and(CallCenterVisitaSpecification.byFilter(filter));
 
         if (currentUserHasRole("FUNCIONARIO_ENCUESTADOR")) {
             Encuestador encuestador = currentEncuestador(user);
-            page = visitaRepository.findByEncuestadorIdAndActivoTrue(encuestador.getId(), pageable);
-        } else {
-            page = visitaRepository.findByActivoTrue(pageable);
+
+            specification = specification.and(
+                    CallCenterVisitaSpecification.byEncuestador(encuestador.getId())
+            );
         }
 
-        return PageResponse.from(page, page.getContent().stream().map(this::toVisitaResponse).toList());
+        Page<CallCenterVisita> page = visitaRepository.findAll(specification, pageable);
+
+        return PageResponse.from(
+                page,
+                page.getContent().stream().map(this::toVisitaResponse).toList()
+        );
     }
 
     /**
      * Actualiza el resultado operativo de una visita de encuestador.
+     *
+     * <p>Si la visita queda realizada o se marca que la encuesta fue realizada,
+     * también se cierra el caso maestro en {@link CallCenterRegistro}. Esto evita
+     * que el o se marca que la encuesta fue realizada,
+     * también se cierra el caso maestro en {@link CallCenterRegistro}. Esto evita
+     * que el ciudadano siga apareciendo como caso abierto o vuelva a ser asignado.</p>
+     *
+     * <p>No permite actualizar resultados de visita cuando el caso ya está
+     * cerrado o cancelado.</p>
      *
      * @param visitaId identificador de la visita.
      * @param request datos del resultado.
@@ -254,6 +272,9 @@ public class CallCenterWorkflowService {
         User user = currentUser();
         validateCanUpdateVisit(visita, user);
 
+        CallCenterRegistro registro = visita.getCallCenterRegistro();
+        validateCaseIsOpen(registro, "No se puede actualizar el resultado de visita de un caso cerrado o cancelado");
+
         String estadoVisita = normalizeRequired(request.estadoVisita(), "El estado de la visita es obligatorio");
         validateEstadoVisita(estadoVisita);
 
@@ -268,7 +289,6 @@ public class CallCenterWorkflowService {
 
         CallCenterVisita saved = visitaRepository.save(visita);
 
-        CallCenterRegistro registro = saved.getCallCenterRegistro();
         registro.setEstadoVisita(saved.getEstadoVisita());
         registro.setFechaVisitaReal(saved.getFechaVisitaReal());
         registro.setHoraVisitaReal(saved.getHoraVisitaReal());
@@ -278,6 +298,13 @@ public class CallCenterWorkflowService {
         registro.setObservacionEncuestador(saved.getObservacionEncuestador());
         registro.setEstadoCaso(resolveEstadoCasoFromVisita(saved));
         registro.setActualizadoPor(user);
+
+        if (shouldCloseCaseFromVisita(saved)) {
+            registro.setEstadoCaso(ESTADO_CERRADO);
+            registro.setFechaCierre(LocalDateTime.now());
+            registro.setMotivoCierre(MOTIVO_CIERRE_ENCUESTA_REALIZADA);
+            registro.setUsuarioCierre(user);
+        }
 
         callCenterRegistroRepository.save(registro);
 
@@ -330,14 +357,18 @@ public class CallCenterWorkflowService {
     /**
      * Resuelve el estado del caso maestro con base en el resultado de visita.
      *
+     * <p>Cuando la visita queda realizada o la encuesta fue marcada como realizada,
+     * el caso maestro debe cerrarse para evitar que siga apareciendo como caso abierto
+     * o vuelva a ser asignado.</p>
+     *
      * @param visita visita actualizada.
      * @return estado del caso maestro.
      */
     private String resolveEstadoCasoFromVisita(CallCenterVisita visita) {
         String estado = normalize(visita.getEstadoVisita());
 
-        if ("REALIZADA".equals(estado) || Boolean.TRUE.equals(visita.getEncuestaRealizada())) {
-            return ESTADO_VISITA_REALIZADA;
+        if (shouldCloseCaseFromVisita(visita)) {
+            return ESTADO_CERRADO;
         }
 
         if ("NO_ATENDIDA".equals(estado)) {
@@ -357,6 +388,18 @@ public class CallCenterWorkflowService {
         }
 
         return ESTADO_ASIGNADO_ENCUESTADOR;
+    }
+
+    /**
+     * Determina si el resultado de una visita debe cerrar el caso maestro.
+     *
+     * @param visita visita evaluada.
+     * @return true si el caso debe cerrarse.
+     */
+    private boolean shouldCloseCaseFromVisita(CallCenterVisita visita) {
+        String estado = normalize(visita.getEstadoVisita());
+
+        return "REALIZADA".equals(estado) || Boolean.TRUE.equals(visita.getEncuestaRealizada());
     }
 
     /**
@@ -441,10 +484,15 @@ public class CallCenterWorkflowService {
     /**
      * Valida permisos para gestionar llamadas y asignaciones sobre un caso.
      *
+     * <p>Además de validar el rol, bloquea cualquier operación sobre casos
+     * cerrados o cancelados.</p>
+     *
      * @param registro caso maestro.
      * @param user usuario autenticado.
      */
     private void validateCanManageCallCenterCase(CallCenterRegistro registro, User user) {
+        validateCaseIsOpen(registro, "No se puede gestionar un caso cerrado o cancelado");
+
         if (currentUserHasAnyRole("ADMIN", "SUPERVISOR", "COORDINADOR_CALLCENTER")) {
             return;
         }
@@ -496,6 +544,34 @@ public class CallCenterWorkflowService {
         }
 
         throw new BusinessException("No tiene permisos para actualizar el resultado de la visita");
+    }
+
+    /**
+     * Valida que un caso maestro esté abierto para permitir operaciones.
+     *
+     * @param registro caso maestro.
+     * @param message mensaje de error.
+     */
+    private void validateCaseIsOpen(CallCenterRegistro registro, String message) {
+        if (registro == null) {
+            throw new BusinessException("La visita no tiene un caso maestro asociado");
+        }
+
+        if (isClosedOrCancelled(registro.getEstadoCaso())) {
+            throw new BusinessException(message);
+        }
+    }
+
+    /**
+     * Indica si un estado formal corresponde a un cierre operativo.
+     *
+     * @param estadoCaso estado formal del caso.
+     * @return true si el caso está cerrado o cancelado.
+     */
+    private boolean isClosedOrCancelled(String estadoCaso) {
+        String estado = normalize(estadoCaso);
+
+        return ESTADO_CERRADO.equals(estado) || ESTADO_CANCELADO.equals(estado);
     }
 
     /**
@@ -663,15 +739,21 @@ public class CallCenterWorkflowService {
     /**
      * Convierte una visita a DTO.
      *
+     * <p>Además de la información propia de la visita, incluye datos principales
+     * del caso maestro para que la pantalla del encuestador pueda mostrar
+     * información contextual y bloquear acciones cuando el caso esté cerrado
+     * o cancelado.</p>
+     *
      * @param entity entidad origen.
      * @return respuesta DTO.
      */
     private CallCenterVisitaResponse toVisitaResponse(CallCenterVisita entity) {
         User usuarioAsigna = entity.getUsuarioAsigna();
+        CallCenterRegistro registro = entity.getCallCenterRegistro();
 
         return new CallCenterVisitaResponse(
                 entity.getId(),
-                entity.getCallCenterRegistro() != null ? entity.getCallCenterRegistro().getId() : null,
+                registro != null ? registro.getId() : null,
                 entity.getEncuestador() != null ? entity.getEncuestador().getId() : null,
                 entity.getEncuestador() != null ? entity.getEncuestador().getNombre() : null,
                 usuarioAsigna != null ? usuarioAsigna.getId() : null,
@@ -687,10 +769,22 @@ public class CallCenterWorkflowService {
                 entity.getFechaReprogramacion(),
                 entity.getObservacionEncuestador(),
                 entity.getActivo(),
-                entity.getCreadoEn()
+                entity.getCreadoEn(),
+
+                registro != null ? registro.getCedulaSolicitante() : null,
+                registro != null ? registro.getNombreCompleto() : null,
+                registro != null ? registro.getTelefono() : null,
+                registro != null ? registro.getDireccionTexto() : null,
+                registro != null && registro.getBarrio() != null
+                        ? registro.getBarrio().getNombre()
+                        : null,
+                registro != null && registro.getBarrio() != null && registro.getBarrio().getComuna() != null
+                        ? registro.getBarrio().getComuna().getNombre()
+                        : null,
+                registro != null ? registro.getTipoSolicitudCallcenter() : null,
+                registro != null ? registro.getEstadoCaso() : null
         );
     }
-
     /**
      * Construye el nombre completo del usuario.
      *

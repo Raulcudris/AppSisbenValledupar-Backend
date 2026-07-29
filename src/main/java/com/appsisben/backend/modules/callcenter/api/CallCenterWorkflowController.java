@@ -1,12 +1,7 @@
 package com.appsisben.backend.modules.callcenter.api;
 
 import com.appsisben.backend.modules.callcenter.application.CallCenterWorkflowService;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterGestionLlamadaRequest;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterGestionLlamadaResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterResultadoLlamadaResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaAsignacionRequest;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaResultadoRequest;
+import com.appsisben.backend.modules.callcenter.dto.*;
 import com.appsisben.backend.shared.api.ApiResponse;
 import com.appsisben.backend.shared.api.PageResponse;
 import jakarta.validation.Valid;
@@ -14,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -24,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -143,15 +140,30 @@ public class CallCenterWorkflowController {
     /**
      * Consulta las visitas asignadas al encuestador autenticado.
      *
+     * <p>Permite filtrar por texto general, estado de visita, estado formal
+     * del caso, condición funcional y rango de fecha programada.</p>
+     *
      * @param page número de página.
      * @param size tamaño de página.
+     * @param q texto de búsqueda.
+     * @param estadoVisita estado operativo de la visita.
+     * @param estadoCaso estado formal del caso.
+     * @param condicion condición funcional del filtro.
+     * @param fechaDesde fecha programada inicial.
+     * @param fechaHasta fecha programada final.
      * @return página de visitas.
      */
     @PreAuthorize(CALLCENTER_READ)
     @GetMapping("/visitas/mis-asignaciones")
     public ApiResponse<PageResponse<CallCenterVisitaResponse>> misVisitas(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String estadoVisita,
+            @RequestParam(required = false) String estadoCaso,
+            @RequestParam(required = false) String condicion,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta
     ) {
         Pageable pageable = PageRequest.of(
                 page,
@@ -162,7 +174,16 @@ public class CallCenterWorkflowController {
                 )
         );
 
-        return ApiResponse.ok(service.misVisitas(pageable));
+        CallCenterVisitaFilterRequest filter = new CallCenterVisitaFilterRequest(
+                q,
+                estadoVisita,
+                estadoCaso,
+                condicion,
+                fechaDesde,
+                fechaHasta
+        );
+
+        return ApiResponse.ok(service.misVisitas(filter, pageable));
     }
 
     /**

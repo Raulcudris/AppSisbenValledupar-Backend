@@ -26,6 +26,14 @@ import java.time.LocalTime;
  * @param observacionEncuestador observación del encuestador.
  * @param activo indica si la visita está activa.
  * @param creadoEn fecha de creación.
+ * @param cedulaSolicitante cédula del ciudadano asociado al caso maestro.
+ * @param nombreCompleto nombre completo del ciudadano asociado al caso maestro.
+ * @param telefono teléfono del ciudadano asociado al caso maestro.
+ * @param direccionTexto dirección registrada en el caso maestro.
+ * @param barrioNombre nombre del barrio asociado al caso maestro.
+ * @param comunaNombre nombre de la comuna asociada al caso maestro.
+ * @param tipoSolicitudCallcenter tipo de solicitud Call Center del caso maestro.
+ * @param estadoCaso estado formal del caso maestro.
  */
 public record CallCenterVisitaResponse(
         Long id,
@@ -45,5 +53,14 @@ public record CallCenterVisitaResponse(
         LocalDate fechaReprogramacion,
         String observacionEncuestador,
         Boolean activo,
-        LocalDateTime creadoEn
+        LocalDateTime creadoEn,
+
+        String cedulaSolicitante,
+        String nombreCompleto,
+        String telefono,
+        String direccionTexto,
+        String barrioNombre,
+        String comunaNombre,
+        String tipoSolicitudCallcenter,
+        String estadoCaso
 ) {}

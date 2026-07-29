@@ -1,9 +1,9 @@
 package com.appsisben.backend.modules.callcenter.repository;
-
 import com.appsisben.backend.modules.callcenter.domain.CallCenterVisita;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,7 +12,8 @@ import java.util.Optional;
  * Repositorio JPA para las visitas de encuestadores asociadas al flujo
  * del módulo Call Center.
  */
-public interface CallCenterVisitaRepository extends JpaRepository<CallCenterVisita, Long> {
+public interface CallCenterVisitaRepository
+        extends JpaRepository<CallCenterVisita, Long>, JpaSpecificationExecutor<CallCenterVisita> {
 
     /**
      * Lista las visitas activas de un caso maestro.

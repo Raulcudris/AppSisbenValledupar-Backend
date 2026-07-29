@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.callcenter.application;
-
 import com.appsisben.backend.modules.audit.application.AuditService;
 import com.appsisben.backend.modules.audit.domain.AuditAction;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterMotivoNoContacto;
@@ -43,11 +42,25 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Servicio principal del módulo Call Center.
+ *
+ * <p>Centraliza las operaciones sobre el caso maestro de Call Center:
+ * consulta, creación, actualización, asignación a funcionario, asignación
+ * legacy de encuestador, activación, inactivación y auditoría.</p>
+ *
+ * <p>El flujo formal de llamadas y visitas se complementa con
+ * {@link CallCenterWorkflowService}. Este servicio mantiene compatibilidad
+ * con pantallas y datos legacy almacenados en {@link CallCenterRegistro}.</p>
+ */
 @Service
 @RequiredArgsConstructor
 public class CallCenterService {
 
     private static final String TABLE_NAME = "callcenter_registro";
+    private static final String ESTADO_CERRADO = "CERRADO";
+    private static final String ESTADO_CANCELADO = "CANCELADO";
+    private static final String MOTIVO_CIERRE_ENCUESTA_REALIZADA = "Encuesta realizada por encuestador";
 
     private final CallCenterRegistroRepository repository;
     private final CallCenterMotivoNoContactoRepository motivoNoContactoRepository;
@@ -58,6 +71,12 @@ public class CallCenterService {
     private final VentanillaRegistroRepository ventanillaRegistroRepository;
     private final AuditService auditService;
 
+    /**
+     * Consulta los registros activos visibles para el usuario autenticado.
+     *
+     * @param pageable configuración de paginación.
+     * @return página de casos Call Center.
+     */
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> findAll(Pageable pageable) {
         Page<CallCenterRegistro> page = findPageForCurrentUser(
@@ -68,6 +87,13 @@ public class CallCenterService {
         return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
     }
 
+    /**
+     * Busca registros Call Center aplicando filtros y permisos por rol.
+     *
+     * @param filter filtros de búsqueda.
+     * @param pageable configuración de paginación.
+     * @return página de casos filtrados.
+     */
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> search(CallCenterFilterRequest filter, Pageable pageable) {
         Page<CallCenterRegistro> page = findPageForCurrentUser(
@@ -78,6 +104,16 @@ public class CallCenterService {
         return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
     }
 
+    /**
+     * Lista las asignaciones visibles según el rol autenticado.
+     *
+     * <p>Para encuestadores retorna sus registros asignados o programados.
+     * Para funcionarios Call Center retorna sus casos asignados. Para perfiles
+     * administrativos retorna registros activos.</p>
+     *
+     * @param pageable configuración de paginación.
+     * @return página de asignaciones.
+     */
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> misAsignaciones(Pageable pageable) {
         Page<CallCenterRegistro> page;
@@ -104,6 +140,12 @@ public class CallCenterService {
         return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
     }
 
+    /**
+     * Lista casos pendientes de asignar a funcionario Call Center.
+     *
+     * @param pageable configuración de paginación.
+     * @return casos pendientes de enrutamiento.
+     */
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> pendientesAsignarFuncionario(Pageable pageable) {
         Page<CallCenterRegistro> page = repository.findAll(
@@ -114,6 +156,15 @@ public class CallCenterService {
         return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
     }
 
+    /**
+     * Lista los registros asignados al funcionario Call Center autenticado.
+     *
+     * <p>Si el usuario no es funcionario Call Center, se retornan registros
+     * activos para perfiles administrativos.</p>
+     *
+     * @param pageable configuración de paginación.
+     * @return página de registros del funcionario.
+     */
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> misRegistrosCallcenter(Pageable pageable) {
         if (currentUserHasRole("FUNCIONARIO_CALLCENTER")) {
@@ -135,6 +186,12 @@ public class CallCenterService {
         return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
     }
 
+    /**
+     * Consulta un caso por identificador.
+     *
+     * @param id identificador del caso.
+     * @return caso encontrado.
+     */
     @Transactional(readOnly = true)
     public CallCenterResponse findById(Long id) {
         CallCenterRegistro entity = findEntity(id);
@@ -143,6 +200,11 @@ public class CallCenterService {
         return toResponse(entity);
     }
 
+    /**
+     * Lista motivos activos de no contacto.
+     *
+     * @return catálogo de motivos de no contacto.
+     */
     @Transactional(readOnly = true)
     public List<CallCenterCatalogResponse> findMotivosNoContacto() {
         return motivoNoContactoRepository.findByActivoTrueOrderByNombreAsc()
@@ -151,6 +213,11 @@ public class CallCenterService {
                 .toList();
     }
 
+    /**
+     * Lista motivos activos de no disposición.
+     *
+     * @return catálogo de motivos de no disposición.
+     */
     @Transactional(readOnly = true)
     public List<CallCenterCatalogResponse> findMotivosNoDisposicion() {
         return motivoNoDisposicionRepository.findByActivoTrueOrderByNombreAsc()
@@ -159,6 +226,11 @@ public class CallCenterService {
                 .toList();
     }
 
+    /**
+     * Lista usuarios activos con rol FUNCIONARIO_CALLCENTER.
+     *
+     * @return funcionarios Call Center disponibles.
+     */
     @Transactional(readOnly = true)
     public List<CallCenterUserOptionResponse> findFuncionariosCallcenter() {
         return userRepository.findAll()
@@ -169,6 +241,11 @@ public class CallCenterService {
                 .toList();
     }
 
+    /**
+     * Construye el resumen de registros visibles para el usuario autenticado.
+     *
+     * @return resumen general de Call Center.
+     */
     @Transactional(readOnly = true)
     public CallCenterSummaryResponse summary() {
         List<CallCenterRegistro> all = findSummaryRecordsForCurrentUser();
@@ -185,9 +262,9 @@ public class CallCenterService {
     /**
      * Crea un caso Call Center.
      *
-     * Cuando el caso nace desde Ventanilla o desde carga manual administrativa,
+     * <p>Cuando el caso nace desde Ventanilla o desde carga manual administrativa,
      * se inicializa como pendiente de enrutamiento. Si el usuario autenticado es
-     * funcionario Call Center, el caso puede quedar asignado directamente a él.
+     * funcionario Call Center, el caso puede quedar asignado directamente a él.</p>
      *
      * @param request datos del caso.
      * @return caso creado.
@@ -225,10 +302,21 @@ public class CallCenterService {
 
         return toResponse(saved);
     }
+
+    /**
+     * Actualiza un caso Call Center.
+     *
+     * <p>No permite modificar casos cerrados o cancelados.</p>
+     *
+     * @param id identificador del caso.
+     * @param request datos a actualizar.
+     * @return caso actualizado.
+     */
     @Transactional
     public CallCenterResponse update(Long id, CallCenterRequest request) {
         CallCenterRegistro entity = findEntity(id);
         validateCurrentFuncionarioCallcenterCanAccess(entity);
+        validateCaseIsOpen(entity, "No se puede actualizar un caso cerrado o cancelado");
 
         Map<String, Object> before = snapshot(entity);
 
@@ -242,8 +330,8 @@ public class CallCenterService {
     /**
      * Asigna casos Call Center a un funcionario Call Center.
      *
-     * Esta acción corresponde al Coordinador / Enrutador. Al asignar el caso,
-     * el estado formal cambia a ASIGNADO_CALLCENTER.
+     * <p>Esta acción corresponde al Coordinador / Enrutador. Al asignar el caso,
+     * el estado formal cambia a ASIGNADO_CALLCENTER.</p>
      *
      * @param request datos de asignación.
      * @return registros actualizados.
@@ -279,6 +367,16 @@ public class CallCenterService {
 
         return registros.stream().map(this::toResponse).toList();
     }
+
+    /**
+     * Asigna encuestador sobre el registro maestro legacy.
+     *
+     * <p>Este método se conserva para compatibilidad con flujos anteriores.
+     * El flujo formal recomendado de visitas está en {@link CallCenterWorkflowService}.</p>
+     *
+     * @param request datos de asignación.
+     * @return registros actualizados.
+     */
     @Transactional
     public List<CallCenterResponse> asignarEncuestador(CallCenterAsignarEncuestadorRequest request) {
         Encuestador encuestador = findEncuestador(request.encuestadorId());
@@ -313,12 +411,24 @@ public class CallCenterService {
         return registros.stream().map(this::toResponse).toList();
     }
 
+    /**
+     * Actualiza datos de visita legacy directamente en el caso maestro.
+     *
+     * <p>No permite actualizar visitas de casos cerrados o cancelados. Si la
+     * visita se marca como REALIZADA o encuestaRealizada = true, cierra el caso
+     * maestro para mantener consistencia con el flujo formal.</p>
+     *
+     * @param id identificador del caso.
+     * @param request datos de visita.
+     * @return caso actualizado.
+     */
     @Transactional
     public CallCenterResponse updateVisita(Long id, CallCenterVisitaRequest request) {
         CallCenterRegistro entity = findEntity(id);
         User user = currentUser();
 
         validateCurrentFuncionarioCallcenterCanAccess(entity);
+        validateCaseIsOpen(entity, "No se puede actualizar la visita de un caso cerrado o cancelado");
 
         if (currentUserHasRole("FUNCIONARIO_ENCUESTADOR")) {
             Encuestador encuestador = currentEncuestador();
@@ -348,6 +458,8 @@ public class CallCenterService {
             entity.setVerificado(request.verificado());
         }
 
+        closeCaseFromLegacyVisitIfNeeded(entity, user);
+
         entity.setActualizadoPor(user);
 
         auditService.safeLog(AuditAction.UPDATE, TABLE_NAME, entity.getId(), before, snapshot(entity));
@@ -355,6 +467,12 @@ public class CallCenterService {
         return toResponse(entity);
     }
 
+    /**
+     * Activa un caso Call Center.
+     *
+     * @param id identificador del caso.
+     * @return caso actualizado.
+     */
     @Transactional
     public CallCenterResponse activate(Long id) {
         CallCenterRegistro entity = findEntity(id);
@@ -370,6 +488,12 @@ public class CallCenterService {
         return toResponse(entity);
     }
 
+    /**
+     * Inactiva un caso Call Center.
+     *
+     * @param id identificador del caso.
+     * @return caso actualizado.
+     */
     @Transactional
     public CallCenterResponse deactivate(Long id) {
         CallCenterRegistro entity = findEntity(id);
@@ -385,6 +509,11 @@ public class CallCenterService {
         return toResponse(entity);
     }
 
+    /**
+     * Elimina lógicamente un caso Call Center.
+     *
+     * @param id identificador del caso.
+     */
     @Transactional
     public void delete(Long id) {
         deactivate(id);
@@ -393,8 +522,8 @@ public class CallCenterService {
     /**
      * Aplica los datos recibidos en el request sobre la entidad Call Center.
      *
-     * Este método actualiza datos generales del ciudadano, origen del caso,
-     * información legacy de llamada/visita y campos del flujo formal.
+     * <p>Este método actualiza datos generales del ciudadano, origen del caso,
+     * información legacy de llamada/visita y campos del flujo formal.</p>
      *
      * @param entity entidad destino.
      * @param request datos enviados por frontend.
@@ -452,6 +581,13 @@ public class CallCenterService {
         entity.setEncuestadorAsignado(findEncuestador(request.encuestadorAsignadoId()));
         entity.setExplicoInformanteCalificado(request.explicoInformanteCalificado());
     }
+
+    /**
+     * Valida coherencia general del request antes de aplicarlo.
+     *
+     * @param entity entidad actual.
+     * @param request datos recibidos.
+     */
     private void validateRequest(CallCenterRegistro entity, CallCenterRequest request) {
         if (request.ventanillaRegistroId() != null
                 && hasText(request.origenRegistro())
@@ -484,6 +620,13 @@ public class CallCenterService {
         validateAsignacionNuevaEncuestaPendiente(entity, request);
     }
 
+    /**
+     * Valida que no exista otra nueva encuesta pendiente para el mismo ciudadano
+     * con encuestador asignado.
+     *
+     * @param entity entidad actual.
+     * @param request datos recibidos.
+     */
     private void validateAsignacionNuevaEncuestaPendiente(CallCenterRegistro entity, CallCenterRequest request) {
         if (!Boolean.TRUE.equals(request.solicitoNuevaEncuesta())) {
             return;
@@ -525,6 +668,13 @@ public class CallCenterService {
         );
     }
 
+    /**
+     * Valida que un registro pendiente no cambie de encuestador mientras
+     * la encuesta no esté realizada.
+     *
+     * @param entity entidad actual.
+     * @param request datos recibidos.
+     */
     private void validateCambioEncuestadorEnRegistroPendiente(CallCenterRegistro entity, CallCenterRequest request) {
         if (entity.getId() == null) {
             return;
@@ -563,7 +713,12 @@ public class CallCenterService {
                 && entity.getEncuestadorAsignado() != null
                 && !request.encuestadorProgramadoId().equals(entity.getEncuestadorAsignado().getId());
 
-        if (changedAsignado || changedProgramado || assigningNewWhenOnlyProgrammedExists || programmingNewWhenOnlyAssignedExists) {
+        if (
+                changedAsignado
+                        || changedProgramado
+                        || assigningNewWhenOnlyProgrammedExists
+                        || programmingNewWhenOnlyAssignedExists
+        ) {
             throw new BusinessException(
                     "Este usuario ya tiene una nueva encuesta pendiente asignada al encuestador "
                             + getNombreEncuestadorAsignado(entity)
@@ -602,6 +757,14 @@ public class CallCenterService {
             );
         }
     }
+
+    /**
+     * Valida que un registro pueda ser asignado a un encuestador.
+     *
+     * @param registro caso Call Center.
+     * @param encuestador encuestador destino.
+     * @param user usuario autenticado.
+     */
     private void validateRegistroAsignableAEncuestador(CallCenterRegistro registro, Encuestador encuestador, User user) {
         if (currentUserHasRole("FUNCIONARIO_CALLCENTER")
                 && (registro.getFuncionarioCallcenterAsignado() == null
@@ -613,6 +776,10 @@ public class CallCenterService {
 
         if (!Boolean.TRUE.equals(registro.getActivo())) {
             throw new BusinessException("Solo se pueden asignar registros activos");
+        }
+
+        if (isClosedOrCancelled(registro.getEstadoCaso())) {
+            throw new BusinessException("No se puede asignar encuestador a un caso cerrado o cancelado");
         }
 
         if (Boolean.TRUE.equals(registro.getEncuestaRealizada())) {
@@ -627,6 +794,13 @@ public class CallCenterService {
         }
     }
 
+    /**
+     * Aplica el filtro base correspondiente al usuario autenticado.
+     *
+     * @param specification especificación base.
+     * @param pageable configuración de paginación.
+     * @return página filtrada por permisos.
+     */
     private Page<CallCenterRegistro> findPageForCurrentUser(
             Specification<CallCenterRegistro> specification,
             Pageable pageable
@@ -642,6 +816,11 @@ public class CallCenterService {
         return repository.findAll(specification, pageable);
     }
 
+    /**
+     * Obtiene registros usados para el resumen según el usuario autenticado.
+     *
+     * @return registros visibles para resumen.
+     */
     private List<CallCenterRegistro> findSummaryRecordsForCurrentUser() {
         if (currentUserHasRole("FUNCIONARIO_CALLCENTER")) {
             User user = currentUser();
@@ -654,6 +833,11 @@ public class CallCenterService {
         return repository.findAll();
     }
 
+    /**
+     * Valida que el funcionario Call Center solo acceda a registros asignados.
+     *
+     * @param registro caso Call Center.
+     */
     private void validateCurrentFuncionarioCallcenterCanAccess(CallCenterRegistro registro) {
         if (!currentUserHasRole("FUNCIONARIO_CALLCENTER")) {
             return;
@@ -671,46 +855,98 @@ public class CallCenterService {
         }
     }
 
+    /**
+     * Busca la entidad principal de Call Center.
+     *
+     * @param id identificador.
+     * @return entidad encontrada.
+     */
     private CallCenterRegistro findEntity(Long id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Registro Call Center no encontrado"));
     }
 
+    /**
+     * Busca un motivo de no contacto.
+     *
+     * @param id identificador.
+     * @return motivo encontrado o null.
+     */
     private CallCenterMotivoNoContacto findMotivoNoContacto(Long id) {
-        if (id == null) return null;
+        if (id == null) {
+            return null;
+        }
 
         return motivoNoContactoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Motivo de no contacto no encontrado"));
     }
 
+    /**
+     * Busca un motivo de no disposición.
+     *
+     * @param id identificador.
+     * @return motivo encontrado o null.
+     */
     private CallCenterMotivoNoDisposicion findMotivoNoDisposicion(Long id) {
-        if (id == null) return null;
+        if (id == null) {
+            return null;
+        }
 
         return motivoNoDisposicionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Motivo de no disposición no encontrado"));
     }
 
+    /**
+     * Busca un encuestador.
+     *
+     * @param id identificador.
+     * @return encuestador encontrado o null.
+     */
     private Encuestador findEncuestador(Long id) {
-        if (id == null) return null;
+        if (id == null) {
+            return null;
+        }
 
         return encuestadorRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Encuestador no encontrado"));
     }
 
+    /**
+     * Busca un barrio.
+     *
+     * @param id identificador.
+     * @return barrio encontrado o null.
+     */
     private Barrio findBarrio(Long id) {
-        if (id == null) return null;
+        if (id == null) {
+            return null;
+        }
 
         return barrioRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Barrio no encontrado"));
     }
 
+    /**
+     * Busca un registro de Ventanilla.
+     *
+     * @param id identificador.
+     * @return registro de Ventanilla encontrado o null.
+     */
     private VentanillaRegistro findVentanillaRegistro(Long id) {
-        if (id == null) return null;
+        if (id == null) {
+            return null;
+        }
 
         return ventanillaRegistroRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Registro de ventanilla no encontrado"));
     }
 
+    /**
+     * Busca un usuario por identificador.
+     *
+     * @param id identificador.
+     * @return usuario encontrado.
+     */
     private User findUser(Long id) {
         if (id == null) {
             throw new BusinessException("Debe seleccionar un usuario");
@@ -720,6 +956,11 @@ public class CallCenterService {
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
     }
 
+    /**
+     * Obtiene el usuario autenticado desde Spring Security.
+     *
+     * @return usuario autenticado.
+     */
     private User currentUser() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
 
@@ -731,6 +972,11 @@ public class CallCenterService {
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario autenticado no encontrado"));
     }
 
+    /**
+     * Obtiene el encuestador vinculado al usuario autenticado por documento.
+     *
+     * @return encuestador autenticado.
+     */
     private Encuestador currentEncuestador() {
         User user = currentUser();
 
@@ -747,8 +993,8 @@ public class CallCenterService {
     /**
      * Verifica si el usuario autenticado tiene un rol específico.
      *
-     * Primero revisa las authorities del token y luego valida contra el rol
-     * persistido del usuario en base de datos.
+     * <p>Primero revisa las authorities del token y luego valida contra el rol
+     * persistido del usuario en base de datos.</p>
      *
      * @param roleCode código del rol.
      * @return true si el usuario tiene el rol indicado.
@@ -771,12 +1017,26 @@ public class CallCenterService {
             return false;
         }
     }
+
+    /**
+     * Valida si un usuario tiene un rol determinado.
+     *
+     * @param user usuario.
+     * @param roleCode código de rol.
+     * @return true si coincide.
+     */
     private boolean hasRoleCode(User user, String roleCode) {
         return user != null
                 && user.getRole() != null
                 && roleCode.equalsIgnoreCase(user.getRole().getCodigo());
     }
 
+    /**
+     * Normaliza el tipo de registro.
+     *
+     * @param tipoRegistro tipo recibido.
+     * @return tipo normalizado.
+     */
     private String normalizeTipoRegistro(String tipoRegistro) {
         String value = hasText(tipoRegistro)
                 ? tipoRegistro.trim().toUpperCase(Locale.ROOT)
@@ -789,6 +1049,13 @@ public class CallCenterService {
         throw new BusinessException("Tipo de registro no válido");
     }
 
+    /**
+     * Normaliza el origen del registro.
+     *
+     * @param origenRegistro origen recibido.
+     * @param ventanillaRegistro registro de Ventanilla asociado.
+     * @return origen normalizado.
+     */
     private String normalizeOrigenRegistro(String origenRegistro, VentanillaRegistro ventanillaRegistro) {
         String value = hasText(origenRegistro)
                 ? origenRegistro.trim().toUpperCase(Locale.ROOT)
@@ -809,18 +1076,24 @@ public class CallCenterService {
         throw new BusinessException("Origen de registro no válido");
     }
 
+    /**
+     * Normaliza el estado de visita legacy.
+     *
+     * @param estadoVisita estado recibido.
+     * @return estado normalizado.
+     */
     private String cleanEstadoVisita(String estadoVisita) {
         String value = hasText(estadoVisita)
                 ? estadoVisita.trim().toUpperCase(Locale.ROOT)
                 : "PENDIENTE";
 
         if (
-                value.equals("PENDIENTE") ||
-                        value.equals("PROGRAMADA") ||
-                        value.equals("REALIZADA") ||
-                        value.equals("NO_ATENDIDA") ||
-                        value.equals("REPROGRAMADA") ||
-                        value.equals("CANCELADA")
+                value.equals("PENDIENTE")
+                        || value.equals("PROGRAMADA")
+                        || value.equals("REALIZADA")
+                        || value.equals("NO_ATENDIDA")
+                        || value.equals("REPROGRAMADA")
+                        || value.equals("CANCELADA")
         ) {
             return value;
         }
@@ -828,6 +1101,12 @@ public class CallCenterService {
         throw new BusinessException("Estado de visita no válido");
     }
 
+    /**
+     * Obtiene el nombre del encuestador asignado o programado.
+     *
+     * @param entity caso Call Center.
+     * @return nombre del encuestador.
+     */
     private String getNombreEncuestadorAsignado(CallCenterRegistro entity) {
         if (entity.getEncuestadorAsignado() != null && hasText(entity.getEncuestadorAsignado().getNombre())) {
             return entity.getEncuestadorAsignado().getNombre();
@@ -840,6 +1119,12 @@ public class CallCenterService {
         return "sin encuestador registrado";
     }
 
+    /**
+     * Construye nombre completo de usuario.
+     *
+     * @param user usuario.
+     * @return nombre completo o username.
+     */
     private String fullName(User user) {
         if (user == null) {
             return null;
@@ -852,6 +1137,12 @@ public class CallCenterService {
         return nombreCompleto.isBlank() ? user.getUsername() : nombreCompleto;
     }
 
+    /**
+     * Convierte usuario a opción de selección.
+     *
+     * @param user usuario.
+     * @return opción de usuario.
+     */
     private CallCenterUserOptionResponse toUserOptionResponse(User user) {
         return new CallCenterUserOptionResponse(
                 user.getId(),
@@ -862,6 +1153,12 @@ public class CallCenterService {
         );
     }
 
+    /**
+     * Valida si un usuario se considera activo.
+     *
+     * @param user usuario.
+     * @return true si está activo.
+     */
     private boolean isUserActivo(User user) {
         if (user == null || user.getActivo() == null) {
             return false;
@@ -880,8 +1177,8 @@ public class CallCenterService {
     /**
      * Convierte una entidad CallCenterRegistro en DTO de respuesta.
      *
-     * Incluye información del caso maestro, datos del ciudadano, trazabilidad
-     * de asignación, datos legacy de visita y campos del flujo formal.
+     * <p>Incluye información del caso maestro, datos del ciudadano, trazabilidad
+     * de asignación, datos legacy de visita y campos del flujo formal.</p>
      *
      * @param entity entidad de Call Center.
      * @return DTO de respuesta para frontend.
@@ -969,7 +1266,12 @@ public class CallCenterService {
         );
     }
 
-
+    /**
+     * Convierte motivo de no contacto a DTO de catálogo.
+     *
+     * @param entity entidad.
+     * @return catálogo.
+     */
     private CallCenterCatalogResponse toCatalogResponse(CallCenterMotivoNoContacto entity) {
         return new CallCenterCatalogResponse(
                 entity.getId(),
@@ -980,6 +1282,12 @@ public class CallCenterService {
         );
     }
 
+    /**
+     * Convierte motivo de no disposición a DTO de catálogo.
+     *
+     * @param entity entidad.
+     * @return catálogo.
+     */
     private CallCenterCatalogResponse toCatalogResponse(CallCenterMotivoNoDisposicion entity) {
         return new CallCenterCatalogResponse(
                 entity.getId(),
@@ -990,6 +1298,12 @@ public class CallCenterService {
         );
     }
 
+    /**
+     * Construye una fotografía de datos para auditoría.
+     *
+     * @param entity entidad auditada.
+     * @return mapa con datos relevantes.
+     */
     private Map<String, Object> snapshot(CallCenterRegistro entity) {
         Map<String, Object> data = new LinkedHashMap<>();
 
@@ -1062,19 +1376,19 @@ public class CallCenterService {
         }
 
         if (
-                value.equals("PENDIENTE_ENRUTAMIENTO") ||
-                        value.equals("ASIGNADO_CALLCENTER") ||
-                        value.equals("EN_GESTION_LLAMADA") ||
-                        value.equals("NO_CONTACTADO") ||
-                        value.equals("CONTACTADO_SIN_DISPOSICION") ||
-                        value.equals("PENDIENTE_ASIGNAR_ENCUESTADOR") ||
-                        value.equals("ASIGNADO_ENCUESTADOR") ||
-                        value.equals("VISITA_PROGRAMADA") ||
-                        value.equals("VISITA_REALIZADA") ||
-                        value.equals("VISITA_NO_ATENDIDA") ||
-                        value.equals("REPROGRAMADO") ||
-                        value.equals("CERRADO") ||
-                        value.equals("CANCELADO")
+                value.equals("PENDIENTE_ENRUTAMIENTO")
+                        || value.equals("ASIGNADO_CALLCENTER")
+                        || value.equals("EN_GESTION_LLAMADA")
+                        || value.equals("NO_CONTACTADO")
+                        || value.equals("CONTACTADO_SIN_DISPOSICION")
+                        || value.equals("PENDIENTE_ASIGNAR_ENCUESTADOR")
+                        || value.equals("ASIGNADO_ENCUESTADOR")
+                        || value.equals("VISITA_PROGRAMADA")
+                        || value.equals("VISITA_REALIZADA")
+                        || value.equals("VISITA_NO_ATENDIDA")
+                        || value.equals("REPROGRAMADO")
+                        || value.equals(ESTADO_CERRADO)
+                        || value.equals(ESTADO_CANCELADO)
         ) {
             return value;
         }
@@ -1106,10 +1420,10 @@ public class CallCenterService {
         }
 
         if (
-                value.equals("NUEVA_ENCUESTA") ||
-                        value.equals("INCLUSION") ||
-                        value.equals("VERIFICACION") ||
-                        value.equals("OTRO")
+                value.equals("NUEVA_ENCUESTA")
+                        || value.equals("INCLUSION")
+                        || value.equals("VERIFICACION")
+                        || value.equals("OTRO")
         ) {
             return value;
         }
@@ -1118,26 +1432,84 @@ public class CallCenterService {
     }
 
     /**
+     * Valida que un caso pueda ser modificado operativamente.
+     *
+     * @param registro caso Call Center.
+     * @param message mensaje de error.
+     */
+    private void validateCaseIsOpen(CallCenterRegistro registro, String message) {
+        if (isClosedOrCancelled(registro.getEstadoCaso())) {
+            throw new BusinessException(message);
+        }
+    }
+
+    /**
+     * Cierra el caso maestro cuando la visita legacy marca encuesta realizada.
+     *
+     * <p>Este método protege el flujo antiguo updateVisita para que tenga el
+     * mismo comportamiento del flujo formal de visitas.</p>
+     *
+     * @param entity caso maestro.
+     * @param user usuario que realiza el cierre.
+     */
+    private void closeCaseFromLegacyVisitIfNeeded(CallCenterRegistro entity, User user) {
+        String estadoVisita = hasText(entity.getEstadoVisita())
+                ? entity.getEstadoVisita().trim().toUpperCase(Locale.ROOT)
+                : "";
+
+        boolean shouldClose = Boolean.TRUE.equals(entity.getEncuestaRealizada())
+                || "REALIZADA".equals(estadoVisita);
+
+        if (!shouldClose) {
+            return;
+        }
+
+        entity.setEstadoCaso(ESTADO_CERRADO);
+        entity.setFechaCierre(LocalDateTime.now());
+        entity.setMotivoCierre(MOTIVO_CIERRE_ENCUESTA_REALIZADA);
+        entity.setUsuarioCierre(user);
+    }
+
+    /**
      * Indica si un caso está cerrado o cancelado.
      *
      * @param estadoCaso estado formal del caso.
-     * @return true si el caso no permite nuevas asignaciones.
+     * @return true si el caso no permite nuevas modificaciones operativas.
      */
     private boolean isClosedOrCancelled(String estadoCaso) {
         String value = hasText(estadoCaso)
                 ? estadoCaso.trim().toUpperCase(Locale.ROOT)
                 : "";
 
-        return value.equals("CERRADO") || value.equals("CANCELADO");
+        return ESTADO_CERRADO.equals(value) || ESTADO_CANCELADO.equals(value);
     }
+
+    /**
+     * Limpia texto convirtiendo valores vacíos en null.
+     *
+     * @param value valor recibido.
+     * @return texto limpio o null.
+     */
     private String clean(String value) {
         return hasText(value) ? value.trim() : null;
     }
 
+    /**
+     * Limpia, compacta y convierte texto a mayúscula.
+     *
+     * @param value valor recibido.
+     * @return texto normalizado en mayúscula o null.
+     */
     private String upper(String value) {
         return hasText(value) ? value.trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT) : null;
     }
 
+    /**
+     * Valida si un texto contiene caracteres diferentes a espacios.
+     *
+     * @param value valor recibido.
+     * @return true si contiene texto.
+     */
     private boolean hasText(String value) {
         return value != null && !value.trim().isBlank();
     }
