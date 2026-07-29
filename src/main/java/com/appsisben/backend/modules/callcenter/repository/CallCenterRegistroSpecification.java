@@ -261,24 +261,77 @@ public final class CallCenterRegistroSpecification {
                 );
             }
 
-            if (hasText(filter.estadoCaso())) {
+            if (hasText(filter.estadoCaso()) && !"TODOS".equalsIgnoreCase(filter.estadoCaso())) {
                 predicate = cb.and(
                         predicate,
                         cb.equal(
-                                cb.upper(root.get("estadoCaso")),
+                                cb.upper(root.get("estadoCaso").as(String.class)),
                                 filter.estadoCaso().trim().toUpperCase(Locale.ROOT)
                         )
                 );
             }
 
-            if (hasText(filter.tipoSolicitudCallcenter())) {
+            if (hasText(filter.tipoSolicitudCallcenter()) && !"TODOS".equalsIgnoreCase(filter.tipoSolicitudCallcenter())) {
                 predicate = cb.and(
                         predicate,
                         cb.equal(
-                                cb.upper(root.get("tipoSolicitudCallcenter")),
+                                cb.upper(root.get("tipoSolicitudCallcenter").as(String.class)),
                                 filter.tipoSolicitudCallcenter().trim().toUpperCase(Locale.ROOT)
                         )
                 );
+            }
+
+            if (hasText(filter.condicion()) && !"TODOS".equalsIgnoreCase(filter.condicion())) {
+                String condicion = filter.condicion().trim().toUpperCase(Locale.ROOT);
+
+                if ("ABIERTOS".equals(condicion)) {
+                    predicate = cb.and(
+                            predicate,
+                            cb.or(
+                                    cb.isNull(root.get("estadoCaso")),
+                                    cb.not(cb.upper(root.get("estadoCaso").as(String.class)).in("CERRADO", "CANCELADO"))
+                            ),
+                            cb.or(
+                                    cb.isNull(root.get("estadoVisita")),
+                                    cb.not(cb.upper(root.get("estadoVisita").as(String.class)).in("REALIZADA", "CANCELADA"))
+                            ),
+                            cb.or(
+                                    cb.isNull(root.get("encuestaRealizada")),
+                                    cb.isFalse(root.get("encuestaRealizada"))
+                            )
+                    );
+                }
+
+                if ("CERRADOS".equals(condicion)) {
+                    predicate = cb.and(
+                            predicate,
+                            cb.or(
+                                    cb.equal(cb.upper(root.get("estadoCaso").as(String.class)), "CERRADO"),
+                                    cb.equal(cb.upper(root.get("estadoCaso").as(String.class)), "CANCELADO"),
+                                    cb.equal(cb.upper(root.get("estadoVisita").as(String.class)), "REALIZADA"),
+                                    cb.equal(cb.upper(root.get("estadoVisita").as(String.class)), "CANCELADA"),
+                                    cb.isTrue(root.get("encuestaRealizada"))
+                            )
+                    );
+                }
+
+                if ("CON_ENCUESTADOR".equals(condicion)) {
+                    predicate = cb.and(
+                            predicate,
+                            cb.or(
+                                    cb.isNotNull(root.get("encuestadorAsignado")),
+                                    cb.isNotNull(root.get("encuestadorProgramado"))
+                            )
+                    );
+                }
+
+                if ("SIN_ENCUESTADOR".equals(condicion)) {
+                    predicate = cb.and(
+                            predicate,
+                            cb.isNull(root.get("encuestadorAsignado")),
+                            cb.isNull(root.get("encuestadorProgramado"))
+                    );
+                }
             }
 
             if (hasText(filter.q())) {

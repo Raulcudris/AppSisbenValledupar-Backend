@@ -70,8 +70,22 @@ public class CallCenterController {
         return ApiResponse.ok(service.pendientesAsignarFuncionario(pageable));
     }
 
+    /**
+     * Consulta los casos asignados al funcionario Call Center autenticado.
+     *
+     * <p>Permite aplicar filtros reales desde base de datos para la pantalla
+     * de Mis registros Call Center.</p>
+     *
+     * @param filter filtros de búsqueda.
+     * @param page número de página.
+     * @param size tamaño de página.
+     * @return página de registros asignados.
+     */
     @PreAuthorize(
             "hasAnyAuthority(" +
+                    "'ADMIN', 'ROLE_ADMIN', " +
+                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
+                    "'AnyAuthority(" +
                     "'ADMIN', 'ROLE_ADMIN', " +
                     "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
                     "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
@@ -80,6 +94,7 @@ public class CallCenterController {
     )
     @GetMapping("/mis-registros-callcenter")
     public ApiResponse<PageResponse<CallCenterResponse>> misRegistrosCallcenter(
+            @ModelAttribute CallCenterFilterRequest filter,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
@@ -92,7 +107,7 @@ public class CallCenterController {
                 )
         );
 
-        return ApiResponse.ok(service.misRegistrosCallcenter(pageable));
+        return ApiResponse.ok(service.misRegistrosCallcenter(filter, pageable));
     }
 
     @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGN_FUNCIONARIO)

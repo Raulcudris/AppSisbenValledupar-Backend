@@ -58,6 +58,13 @@ public record CallCenterFilterRequest(
          * Ejemplos:
          * NUEVA_ENCUESTA, INCLUSION, VERIFICACION, OTRO.
          */
-        String tipoSolicitudCallcenter
+        String tipoSolicitudCallcenter,
+        /**
+         * Condición funcional para filtros rápidos de Mis registros.
+         *
+         * Valores esperados:
+         * ABIERTOS, CERRADOS, CON_ENCUESTADOR, SIN_ENCUESTADOR.
+         */
+        String condicion
 ) {
 }

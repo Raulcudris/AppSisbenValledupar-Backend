@@ -157,31 +157,33 @@ public class CallCenterService {
     }
 
     /**
-     * Lista los registros asignados al funcionario Call Center autenticado.
+     * Lista los registros asignados al funcionario Call Center autenticado
+     * aplicando filtros dinámicos desde base de datos.
      *
-     * <p>Si el usuario no es funcionario Call Center, se retornan registros
-     * activos para perfiles administrativos.</p>
+     * <p>Si el usuario autenticado es FUNCIONARIO_CALLCENTER, la consulta se
+     * limita a los casos asignados a ese usuario. Para perfiles administrativos
+     * se consultan los registros activos que cumplan los filtros.</p>
      *
+     * @param filter filtros de búsqueda.
      * @param pageable configuración de paginación.
      * @return página de registros del funcionario.
      */
     @Transactional(readOnly = true)
-    public PageResponse<CallCenterResponse> misRegistrosCallcenter(Pageable pageable) {
+    public PageResponse<CallCenterResponse> misRegistrosCallcenter(
+            CallCenterFilterRequest filter,
+            Pageable pageable
+    ) {
+        Specification<CallCenterRegistro> specification = CallCenterRegistroSpecification.byFilter(filter);
+
         if (currentUserHasRole("FUNCIONARIO_CALLCENTER")) {
             User user = currentUser();
 
-            Page<CallCenterRegistro> page = repository.findAll(
-                    CallCenterRegistroSpecification.byFuncionarioCallcenterAsignado(user.getId()),
-                    pageable
+            specification = specification.and(
+                    CallCenterRegistroSpecification.byFuncionarioCallcenterAsignado(user.getId())
             );
-
-            return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
         }
 
-        Page<CallCenterRegistro> page = repository.findAll(
-                CallCenterRegistroSpecification.activeOnly(),
-                pageable
-        );
+        Page<CallCenterRegistro> page = repository.findAll(specification, pageable);
 
         return PageResponse.from(page, page.getContent().stream().map(this::toResponse).toList());
     }
