@@ -85,9 +85,6 @@ public class CallCenterController {
             "hasAnyAuthority(" +
                     "'ADMIN', 'ROLE_ADMIN', " +
                     "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'AnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
                     "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
                     "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER'" +
                     ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER', 'FUNCIONARIO_CALLCENTER')"
