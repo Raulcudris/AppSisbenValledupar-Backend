@@ -158,11 +158,10 @@ public class CallCenterService {
 
     /**
      * Lista los registros asignados al funcionario Call Center autenticado
-     * aplicando filtros dinámicos desde base de datos.
+     * aplicando filtros dinámicos desde base de datos cuando existen filtros.
      *
-     * <p>Si el usuario autenticado es FUNCIONARIO_CALLCENTER, la consulta se
-     * limita a los casos asignados a ese usuario. Para perfiles administrativos
-     * se consultan los registros activos que cumplan los filtros.</p>
+     * <p>Si no se reciben filtros, conserva la consulta base anterior para evitar
+     * errores en la carga inicial de la pantalla Mis registros.</p>
      *
      * @param filter filtros de búsqueda.
      * @param pageable configuración de paginación.
@@ -173,7 +172,9 @@ public class CallCenterService {
             CallCenterFilterRequest filter,
             Pageable pageable
     ) {
-        Specification<CallCenterRegistro> specification = CallCenterRegistroSpecification.byFilter(filter);
+        Specification<CallCenterRegistro> specification = isEmptyMisRegistrosFilter(filter)
+                ? CallCenterRegistroSpecification.activeOnly()
+                : CallCenterRegistroSpecification.byFilter(filter);
 
         if (currentUserHasRole("FUNCIONARIO_CALLCENTER")) {
             User user = currentUser();
@@ -413,6 +414,36 @@ public class CallCenterService {
         return registros.stream().map(this::toResponse).toList();
     }
 
+    /**
+     * Valida si los filtros enviados desde Mis registros están vacíos.
+     *
+     * <p>Este método permite conservar la consulta base cuando la pantalla carga
+     * inicialmente sin criterios de búsqueda.</p>
+     *
+     * @param filter filtros recibidos.
+     * @return true si no hay filtros útiles.
+     */
+    private boolean isEmptyMisRegistrosFilter(CallCenterFilterRequest filter) {
+        if (filter == null) {
+            return true;
+        }
+
+        return !hasText(filter.q())
+                && !hasUsefulFilterValue(filter.estadoCaso(), "TODOS")
+                && !hasUsefulFilterValue(filter.tipoSolicitudCallcenter(), "TODOS")
+                && !hasUsefulFilterValue(filter.condicion(), "TODOS");
+    }
+
+    /**
+     * Valida si un valor de filtro contiene una selección útil.
+     *
+     * @param value valor recibido.
+     * @param ignoredValue valor que representa sin filtro.
+     * @return true si debe aplicarse.
+     */
+    private boolean hasUsefulFilterValue(String value, String ignoredValue) {
+        return hasText(value) && !ignoredValue.equalsIgnoreCase(value.trim());
+    }
     /**
      * Actualiza datos de visita legacy directamente en el caso maestro.
      *
