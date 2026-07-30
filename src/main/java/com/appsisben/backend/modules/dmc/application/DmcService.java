@@ -174,30 +174,79 @@ public class DmcService {
                 request.tipoDmcId()
         );
 
+        Encuestador encuestador = findActiveEncuestador(
+                request.encuestadorId()
+        );
+
+        Barrio barrio = findActiveBarrio(
+                request.barrioId()
+        );
+
+        entity.setFecha(request.fecha());
+        entity.setTipoDmc(tipoDmc);
+        entity.setEncuestador(encuestador);
+        entity.setCantidad(request.cantidad());
+        entity.setObservacion(
+                normalizeOptionalText(request.observacion())
+        );
+        entity.setBarrio(barrio);
+    }
+
+    private Encuestador findActiveEncuestador(Long encuestadorId) {
         Encuestador encuestador = encuestadorRepository
-                .findById(request.encuestadorId())
+                .findById(encuestadorId)
                 .orElseThrow(
                         () -> new ResourceNotFoundException(
                                 "Encuestador no encontrado"
                         )
                 );
 
+        if (!Boolean.TRUE.equals(encuestador.getActivo())) {
+            throw new BusinessException(
+                    "El encuestador seleccionado está inactivo"
+            );
+        }
+
+        return encuestador;
+    }
+
+    private Barrio findActiveBarrio(Long barrioId) {
         Barrio barrio = barrioRepository
-                .findById(request.barrioId())
+                .findById(barrioId)
                 .orElseThrow(
                         () -> new ResourceNotFoundException(
                                 "Barrio no encontrado"
                         )
                 );
 
-        entity.setFecha(request.fecha());
-        entity.setTipoDmc(tipoDmc);
-        entity.setEncuestador(encuestador);
-        entity.setCantidad(request.cantidad());
-        entity.setObservacion(request.observacion());
-        entity.setBarrio(barrio);
+        if (!Boolean.TRUE.equals(barrio.getActivo())) {
+            throw new BusinessException(
+                    "El barrio seleccionado está inactivo"
+            );
+        }
+
+        if (barrio.getComuna() == null) {
+            throw new BusinessException(
+                    "El barrio seleccionado no tiene una comuna asociada"
+            );
+        }
+
+        if (!Boolean.TRUE.equals(barrio.getComuna().getActivo())) {
+            throw new BusinessException(
+                    "La comuna asociada al barrio está inactiva"
+            );
+        }
+
+        return barrio;
     }
 
+    private String normalizeOptionalText(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        return value.trim();
+    }
     private TipoDmc findValidTipoDmc(Long tipoDmcId) {
         TipoDmc tipoDmc = tipoDmcRepository
                 .findById(tipoDmcId)

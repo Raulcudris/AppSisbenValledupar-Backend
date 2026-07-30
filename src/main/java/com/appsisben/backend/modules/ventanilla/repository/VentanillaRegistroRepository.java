@@ -2,6 +2,7 @@ package com.appsisben.backend.modules.ventanilla.repository;
 
 import com.appsisben.backend.modules.reports.dto.*;
 import com.appsisben.backend.modules.ventanilla.domain.VentanillaRegistro;
+import com.appsisben.backend.modules.ventanilla.dto.VentanillaTraceabilityRow;
 import com.appsisben.backend.modules.ventanilla.dto.VentanillaUserHistorySummaryResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -529,6 +530,20 @@ public interface VentanillaRegistroRepository extends JpaRepository<VentanillaRe
     List<VentanillaEmployeeDailyDetailResponse> countEmployeeDetailedPerformanceDaily(
             @Param("fechaInicio") LocalDate fechaInicio,
             @Param("fechaFin") LocalDate fechaFin
+    );
+
+    @Query("""
+        select new com.appsisben.backend.modules.ventanilla.dto.VentanillaTraceabilityRow(
+            v.id,
+            v.cedulaUsuario,
+            v.fecha
+        )
+        from VentanillaRegistro v
+        where upper(v.cedulaUsuario) in :cedulas
+        order by upper(v.cedulaUsuario) asc, v.fecha asc, v.id asc
+        """)
+    List<VentanillaTraceabilityRow> findTraceabilityRowsByCedulas(
+            @Param("cedulas") List<String> cedulas
     );
 
 }

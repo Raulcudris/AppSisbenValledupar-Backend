@@ -148,30 +148,44 @@ public class VentanillaController {
         return ApiResponse.ok("Registro de ventanilla retirado correctamente", null);
     }
 
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize(AppRolePreAuthorize.ADMIN)
     @PatchMapping("/{id}/activar")
     public ApiResponse<Void> activate(@PathVariable Long id) {
         service.activate(id);
 
-        return ApiResponse.ok("Registro de ventanilla activado correctamente", null);
+        return ApiResponse.ok(
+                "Registro de ventanilla activado correctamente",
+                null
+        );
     }
 
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize(AppRolePreAuthorize.ADMIN)
     @PatchMapping("/{id}/estado")
     public ApiResponse<Void> changeActiveStatus(
             @PathVariable Long id,
-            @RequestBody Map<String, Boolean> request
+            @Valid @RequestBody VentanillaActiveStatusRequest request
     ) {
-        service.changeActiveStatus(id, request.get("activo"));
+        service.changeActiveStatus(
+                id,
+                request.activo()
+        );
 
-        return ApiResponse.ok("Estado del registro actualizado correctamente", null);
+        return ApiResponse.ok(
+                Boolean.TRUE.equals(request.activo())
+                        ? "Registro de ventanilla activado correctamente"
+                        : "Registro de ventanilla inactivado correctamente",
+                null
+        );
     }
 
-    @PreAuthorize("hasAuthority('ADMIN') or hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize(AppRolePreAuthorize.ADMIN)
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         service.delete(id);
 
-        return ApiResponse.ok("Registro de ventanilla eliminado definitivamente", null);
+        return ApiResponse.ok(
+                "Registro de ventanilla inactivado correctamente",
+                null
+        );
     }
 }

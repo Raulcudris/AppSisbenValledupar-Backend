@@ -6,6 +6,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
@@ -19,13 +20,37 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findById(Long id);
 
     @EntityGraph(attributePaths = "role")
-    Optional<User> findByUsernameIgnoreCase(String username);
+    Optional<User> findByUsernameIgnoreCase(
+            String username
+    );
 
-    boolean existsByUsernameIgnoreCase(String username);
+    /**
+     * Lista funcionarios Call Center disponibles para asignación.
+     *
+     * Solo retorna usuarios activos, con rol activo y con el código
+     * de rol solicitado. La relación role se carga en la misma consulta.
+     */
+    @EntityGraph(attributePaths = "role")
+    List<User>
+    findByActivoTrueAndRoleActivoTrueAndRoleCodigoIgnoreCaseOrderByUsernameAsc(
+            String roleCode
+    );
 
-    boolean existsByUsernameIgnoreCaseAndIdNot(String username, Long id);
+    boolean existsByUsernameIgnoreCase(
+            String username
+    );
 
-    boolean existsByDocumentoIgnoreCase(String documento);
+    boolean existsByUsernameIgnoreCaseAndIdNot(
+            String username,
+            Long id
+    );
 
-    boolean existsByDocumentoIgnoreCaseAndIdNot(String documento, Long id);
+    boolean existsByDocumentoIgnoreCase(
+            String documento
+    );
+
+    boolean existsByDocumentoIgnoreCaseAndIdNot(
+            String documento,
+            Long id
+    );
 }

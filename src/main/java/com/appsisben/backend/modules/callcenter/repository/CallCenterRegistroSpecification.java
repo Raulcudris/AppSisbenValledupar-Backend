@@ -20,12 +20,92 @@ public final class CallCenterRegistroSpecification {
     }
 
     /**
+     * Carga las relaciones necesarias para construir CallCenterResponse.
+     *
+     * Los fetch solamente se aplican sobre la consulta de contenido.
+     * La consulta de conteo usada por la paginación no incluye los fetch.
+     *
+     * Todas las relaciones cargadas son ManyToOne, por lo que no se
+     * multiplican los registros por colecciones relacionadas.
+     *
+     * @return especificación con el grafo de relaciones requerido.
+     */
+    public static Specification<CallCenterRegistro> withResponseGraph() {
+        return (root, query, cb) -> {
+            if (
+                    query != null
+                            && Long.class != query.getResultType()
+                            && long.class != query.getResultType()
+            ) {
+                root.fetch(
+                        "funcionario",
+                        JoinType.LEFT
+                );
+
+                root.fetch(
+                        "motivoNoContacto",
+                        JoinType.LEFT
+                );
+
+                root.fetch(
+                        "encuestadorProgramado",
+                        JoinType.LEFT
+                );
+
+                root.fetch(
+                                "barrio",
+                                JoinType.LEFT
+                        )
+                        .fetch(
+                                "comuna",
+                                JoinType.LEFT
+                        );
+
+                root.fetch(
+                        "motivoNoDisposicion",
+                        JoinType.LEFT
+                );
+
+                root.fetch(
+                        "encuestadorAsignado",
+                        JoinType.LEFT
+                );
+
+                root.fetch(
+                        "ventanillaRegistro",
+                        JoinType.LEFT
+                );
+
+                root.fetch(
+                        "funcionarioCallcenterAsignado",
+                        JoinType.LEFT
+                );
+
+                root.fetch(
+                        "usuarioAsignaCallcenter",
+                        JoinType.LEFT
+                );
+
+                root.fetch(
+                        "usuarioCierre",
+                        JoinType.LEFT
+                );
+
+                query.distinct(true);
+            }
+
+            return cb.conjunction();
+        };
+    }
+
+    /**
      * Filtra únicamente registros activos.
      *
      * @return especificación de registros activos.
      */
     public static Specification<CallCenterRegistro> activeOnly() {
-        return (root, query, cb) -> cb.isTrue(root.get("activo"));
+        return (root, query, cb) ->
+                cb.isTrue(root.get("activo"));
     }
 
     /**
@@ -34,12 +114,23 @@ public final class CallCenterRegistroSpecification {
      * @param encuestadorId identificador del encuestador.
      * @return especificación por encuestador.
      */
-    public static Specification<CallCenterRegistro> byEncuestadorAsignadoOrProgramado(Long encuestadorId) {
+    public static Specification<CallCenterRegistro>
+    byEncuestadorAsignadoOrProgramado(
+            Long encuestadorId
+    ) {
         return (root, query, cb) -> cb.and(
                 cb.isTrue(root.get("activo")),
                 cb.or(
-                        cb.equal(root.get("encuestadorAsignado").get("id"), encuestadorId),
-                        cb.equal(root.get("encuestadorProgramado").get("id"), encuestadorId)
+                        cb.equal(
+                                root.get("encuestadorAsignado")
+                                        .get("id"),
+                                encuestadorId
+                        ),
+                        cb.equal(
+                                root.get("encuestadorProgramado")
+                                        .get("id"),
+                                encuestadorId
+                        )
                 )
         );
     }
@@ -47,166 +138,256 @@ public final class CallCenterRegistroSpecification {
     /**
      * Construye filtros dinámicos para la búsqueda general de casos Call Center.
      *
-     * Incluye filtros legacy, asignación de funcionario, origen, estado de visita,
-     * estado formal del caso y tipo de solicitud Call Center.
+     * Incluye filtros legacy, asignación de funcionario, origen, estado de
+     * visita, estado formal del caso y tipo de solicitud Call Center.
      *
      * @param filter filtros recibidos desde frontend.
      * @return especificación dinámica.
      */
-    public static Specification<CallCenterRegistro> byFilter(CallCenterFilterRequest filter) {
+    public static Specification<CallCenterRegistro> byFilter(
+            CallCenterFilterRequest filter
+    ) {
         return (root, query, cb) -> {
             var predicate = cb.conjunction();
 
-            if (query != null && Long.class != query.getResultType() && long.class != query.getResultType()) {
-                root.fetch("funcionario", JoinType.LEFT);
-                root.fetch("motivoNoContacto", JoinType.LEFT);
-                root.fetch("encuestadorProgramado", JoinType.LEFT);
-                root.fetch("barrio", JoinType.LEFT).fetch("comuna", JoinType.LEFT);
-                root.fetch("motivoNoDisposicion", JoinType.LEFT);
-                root.fetch("encuestadorAsignado", JoinType.LEFT);
-                root.fetch("ventanillaRegistro", JoinType.LEFT);
-                root.fetch("funcionarioCallcenterAsignado", JoinType.LEFT);
-                root.fetch("usuarioAsignaCallcenter", JoinType.LEFT);
-                root.fetch("usuarioCierre", JoinType.LEFT);
-                query.distinct(true);
-            }
-
             if (filter == null) {
-                return cb.and(predicate, cb.isTrue(root.get("activo")));
+                return cb.and(
+                        predicate,
+                        cb.isTrue(root.get("activo"))
+                );
             }
 
-            if (filter.funcionarioCallcenterAsignadoId() != null) {
+            if (
+                    filter.funcionarioCallcenterAsignadoId()
+                            != null
+            ) {
                 predicate = cb.and(
                         predicate,
                         cb.equal(
-                                root.get("funcionarioCallcenterAsignado").get("id"),
+                                root.get(
+                                                "funcionarioCallcenterAsignado"
+                                        )
+                                        .get("id"),
                                 filter.funcionarioCallcenterAsignadoId()
                         )
                 );
             }
 
             if (filter.activo() != null) {
-                predicate = cb.and(predicate, cb.equal(root.get("activo"), filter.activo()));
+                predicate = cb.and(
+                        predicate,
+                        cb.equal(
+                                root.get("activo"),
+                                filter.activo()
+                        )
+                );
             } else {
-                predicate = cb.and(predicate, cb.isTrue(root.get("activo")));
+                predicate = cb.and(
+                        predicate,
+                        cb.isTrue(root.get("activo"))
+                );
             }
 
             if (filter.fechaInicio() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.greaterThanOrEqualTo(root.get("fechaLlamada"), filter.fechaInicio())
+                        cb.greaterThanOrEqualTo(
+                                root.get("fechaLlamada"),
+                                filter.fechaInicio()
+                        )
                 );
             }
 
             if (filter.fechaFin() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.lessThanOrEqualTo(root.get("fechaLlamada"), filter.fechaFin())
+                        cb.lessThanOrEqualTo(
+                                root.get("fechaLlamada"),
+                                filter.fechaFin()
+                        )
                 );
             }
 
             if (filter.funcionarioId() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("funcionario").get("id"), filter.funcionarioId())
+                        cb.equal(
+                                root.get("funcionario")
+                                        .get("id"),
+                                filter.funcionarioId()
+                        )
                 );
             }
 
             if (hasText(filter.cedulaSolicitante())) {
                 predicate = cb.and(
                         predicate,
-                        cb.like(cb.lower(root.get("cedulaSolicitante")), like(filter.cedulaSolicitante()))
+                        cb.like(
+                                cb.lower(
+                                        root.get(
+                                                "cedulaSolicitante"
+                                        )
+                                ),
+                                like(
+                                        filter.cedulaSolicitante()
+                                )
+                        )
                 );
             }
 
             if (hasText(filter.nombreCompleto())) {
                 predicate = cb.and(
                         predicate,
-                        cb.like(cb.lower(root.get("nombreCompleto")), like(filter.nombreCompleto()))
+                        cb.like(
+                                cb.lower(
+                                        root.get("nombreCompleto")
+                                ),
+                                like(filter.nombreCompleto())
+                        )
                 );
             }
 
             if (hasText(filter.telefono())) {
                 predicate = cb.and(
                         predicate,
-                        cb.like(cb.lower(root.get("telefono")), like(filter.telefono()))
+                        cb.like(
+                                cb.lower(
+                                        root.get("telefono")
+                                ),
+                                like(filter.telefono())
+                        )
                 );
             }
 
             if (filter.llamadaConectada() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("llamadaConectada"), filter.llamadaConectada())
+                        cb.equal(
+                                root.get("llamadaConectada"),
+                                filter.llamadaConectada()
+                        )
                 );
             }
 
             if (filter.motivoNoContactoId() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("motivoNoContacto").get("id"), filter.motivoNoContactoId())
+                        cb.equal(
+                                root.get("motivoNoContacto")
+                                        .get("id"),
+                                filter.motivoNoContactoId()
+                        )
                 );
             }
 
             if (filter.encuestadorProgramadoId() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("encuestadorProgramado").get("id"), filter.encuestadorProgramadoId())
+                        cb.equal(
+                                root.get("encuestadorProgramado")
+                                        .get("id"),
+                                filter.encuestadorProgramadoId()
+                        )
                 );
             }
 
             if (filter.encuestadorAsignadoId() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("encuestadorAsignado").get("id"), filter.encuestadorAsignadoId())
+                        cb.equal(
+                                root.get("encuestadorAsignado")
+                                        .get("id"),
+                                filter.encuestadorAsignadoId()
+                        )
                 );
             }
 
             if (filter.fechaEncuestaInicio() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.greaterThanOrEqualTo(root.get("fechaEncuestaProgramada"), filter.fechaEncuestaInicio())
+                        cb.greaterThanOrEqualTo(
+                                root.get(
+                                        "fechaEncuestaProgramada"
+                                ),
+                                filter.fechaEncuestaInicio()
+                        )
                 );
             }
 
             if (filter.fechaEncuestaFin() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.lessThanOrEqualTo(root.get("fechaEncuestaProgramada"), filter.fechaEncuestaFin())
+                        cb.lessThanOrEqualTo(
+                                root.get(
+                                        "fechaEncuestaProgramada"
+                                ),
+                                filter.fechaEncuestaFin()
+                        )
                 );
             }
 
             if (filter.solicitoNuevaEncuesta() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("solicitoNuevaEncuesta"), filter.solicitoNuevaEncuesta())
+                        cb.equal(
+                                root.get(
+                                        "solicitoNuevaEncuesta"
+                                ),
+                                filter.solicitoNuevaEncuesta()
+                        )
                 );
             }
 
             if (filter.barrioId() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("barrio").get("id"), filter.barrioId())
+                        cb.equal(
+                                root.get("barrio")
+                                        .get("id"),
+                                filter.barrioId()
+                        )
                 );
             }
 
             if (filter.comunaId() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("barrio").get("comuna").get("id"), filter.comunaId())
+                        cb.equal(
+                                root.get("barrio")
+                                        .get("comuna")
+                                        .get("id"),
+                                filter.comunaId()
+                        )
                 );
             }
 
-            if (filter.disposicionRecibirEncuesta() != null) {
+            if (
+                    filter.disposicionRecibirEncuesta()
+                            != null
+            ) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("disposicionRecibirEncuesta"), filter.disposicionRecibirEncuesta())
+                        cb.equal(
+                                root.get(
+                                        "disposicionRecibirEncuesta"
+                                ),
+                                filter.disposicionRecibirEncuesta()
+                        )
                 );
             }
 
-            if (filter.explicoInformanteCalificado() != null) {
+            if (
+                    filter.explicoInformanteCalificado()
+                            != null
+            ) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("explicoInformanteCalificado"), filter.explicoInformanteCalificado())
+                        cb.equal(
+                                root.get(
+                                        "explicoInformanteCalificado"
+                                ),
+                                filter.explicoInformanteCalificado()
+                        )
                 );
             }
 
@@ -214,8 +395,12 @@ public final class CallCenterRegistroSpecification {
                 predicate = cb.and(
                         predicate,
                         cb.equal(
-                                cb.upper(root.get("tipoRegistro")),
-                                filter.tipoRegistro().trim().toUpperCase(Locale.ROOT)
+                                cb.upper(
+                                        root.get("tipoRegistro")
+                                ),
+                                filter.tipoRegistro()
+                                        .trim()
+                                        .toUpperCase(Locale.ROOT)
                         )
                 );
             }
@@ -224,8 +409,12 @@ public final class CallCenterRegistroSpecification {
                 predicate = cb.and(
                         predicate,
                         cb.equal(
-                                cb.upper(root.get("origenRegistro")),
-                                filter.origenRegistro().trim().toUpperCase(Locale.ROOT)
+                                cb.upper(
+                                        root.get("origenRegistro")
+                                ),
+                                filter.origenRegistro()
+                                        .trim()
+                                        .toUpperCase(Locale.ROOT)
                         )
                 );
             }
@@ -233,14 +422,21 @@ public final class CallCenterRegistroSpecification {
             if (filter.ventanillaRegistroId() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("ventanillaRegistro").get("id"), filter.ventanillaRegistroId())
+                        cb.equal(
+                                root.get("ventanillaRegistro")
+                                        .get("id"),
+                                filter.ventanillaRegistroId()
+                        )
                 );
             }
 
             if (filter.verificado() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("verificado"), filter.verificado())
+                        cb.equal(
+                                root.get("verificado"),
+                                filter.verificado()
+                        )
                 );
             }
 
@@ -248,8 +444,12 @@ public final class CallCenterRegistroSpecification {
                 predicate = cb.and(
                         predicate,
                         cb.equal(
-                                cb.upper(root.get("estadoVisita")),
-                                filter.estadoVisita().trim().toUpperCase(Locale.ROOT)
+                                cb.upper(
+                                        root.get("estadoVisita")
+                                ),
+                                filter.estadoVisita()
+                                        .trim()
+                                        .toUpperCase(Locale.ROOT)
                         )
                 );
             }
@@ -257,47 +457,119 @@ public final class CallCenterRegistroSpecification {
             if (filter.encuestaRealizada() != null) {
                 predicate = cb.and(
                         predicate,
-                        cb.equal(root.get("encuestaRealizada"), filter.encuestaRealizada())
-                );
-            }
-
-            if (hasText(filter.estadoCaso()) && !"TODOS".equalsIgnoreCase(filter.estadoCaso())) {
-                predicate = cb.and(
-                        predicate,
                         cb.equal(
-                                cb.upper(root.get("estadoCaso").as(String.class)),
-                                filter.estadoCaso().trim().toUpperCase(Locale.ROOT)
+                                root.get("encuestaRealizada"),
+                                filter.encuestaRealizada()
                         )
                 );
             }
 
-            if (hasText(filter.tipoSolicitudCallcenter()) && !"TODOS".equalsIgnoreCase(filter.tipoSolicitudCallcenter())) {
+            if (
+                    hasText(filter.estadoCaso())
+                            && !"TODOS".equalsIgnoreCase(
+                            filter.estadoCaso()
+                    )
+            ) {
                 predicate = cb.and(
                         predicate,
                         cb.equal(
-                                cb.upper(root.get("tipoSolicitudCallcenter").as(String.class)),
-                                filter.tipoSolicitudCallcenter().trim().toUpperCase(Locale.ROOT)
+                                cb.upper(
+                                        root.get("estadoCaso")
+                                                .as(String.class)
+                                ),
+                                filter.estadoCaso()
+                                        .trim()
+                                        .toUpperCase(Locale.ROOT)
                         )
                 );
             }
 
-            if (hasText(filter.condicion()) && !"TODOS".equalsIgnoreCase(filter.condicion())) {
-                String condicion = filter.condicion().trim().toUpperCase(Locale.ROOT);
+            if (
+                    hasText(
+                            filter.tipoSolicitudCallcenter()
+                    )
+                            && !"TODOS".equalsIgnoreCase(
+                            filter.tipoSolicitudCallcenter()
+                    )
+            ) {
+                predicate = cb.and(
+                        predicate,
+                        cb.equal(
+                                cb.upper(
+                                        root.get(
+                                                        "tipoSolicitudCallcenter"
+                                                )
+                                                .as(String.class)
+                                ),
+                                filter.tipoSolicitudCallcenter()
+                                        .trim()
+                                        .toUpperCase(Locale.ROOT)
+                        )
+                );
+            }
+
+            if (
+                    hasText(filter.condicion())
+                            && !"TODOS".equalsIgnoreCase(
+                            filter.condicion()
+                    )
+            ) {
+                String condicion = filter.condicion()
+                        .trim()
+                        .toUpperCase(Locale.ROOT);
 
                 if ("ABIERTOS".equals(condicion)) {
                     predicate = cb.and(
                             predicate,
                             cb.or(
-                                    cb.isNull(root.get("estadoCaso")),
-                                    cb.not(cb.upper(root.get("estadoCaso").as(String.class)).in("CERRADO", "CANCELADO"))
+                                    cb.isNull(
+                                            root.get("estadoCaso")
+                                    ),
+                                    cb.not(
+                                            cb.upper(
+                                                            root.get(
+                                                                            "estadoCaso"
+                                                                    )
+                                                                    .as(
+                                                                            String.class
+                                                                    )
+                                                    )
+                                                    .in(
+                                                            "CERRADO",
+                                                            "CANCELADO"
+                                                    )
+                                    )
                             ),
                             cb.or(
-                                    cb.isNull(root.get("estadoVisita")),
-                                    cb.not(cb.upper(root.get("estadoVisita").as(String.class)).in("REALIZADA", "CANCELADA"))
+                                    cb.isNull(
+                                            root.get("estadoVisita")
+                                    ),
+                                    cb.not(
+                                            cb.upper(
+                                                            root.get(
+                                                                            "estadoVisita"
+                                                                    )
+                                                                    .as(
+                                                                            String.class
+                                                                    )
+                                                    )
+                                                    .in(
+                                                            "REALIZADA",
+                                                            "CANCELADA"
+                                                    )
+                                    )
                             ),
                             cb.or(
-                                    cb.isNull(root.get("encuestaRealizada")),
-                                    cb.isFalse(root.get("encuestaRealizada"))
+                                    cb.isNull(
+                                            root.get(
+                                                    "encuestaRealizada"
+                                            )
+                                    ),
+                                    cb.isFalse(
+                                            root.get(
+                                                    "encuestaRealizada"
+                                            )
+                                    )
                             )
                     );
                 }
@@ -306,30 +578,98 @@ public final class CallCenterRegistroSpecification {
                     predicate = cb.and(
                             predicate,
                             cb.or(
-                                    cb.equal(cb.upper(root.get("estadoCaso").as(String.class)), "CERRADO"),
-                                    cb.equal(cb.upper(root.get("estadoCaso").as(String.class)), "CANCELADO"),
-                                    cb.equal(cb.upper(root.get("estadoVisita").as(String.class)), "REALIZADA"),
-                                    cb.equal(cb.upper(root.get("estadoVisita").as(String.class)), "CANCELADA"),
-                                    cb.isTrue(root.get("encuestaRealizada"))
+                                    cb.equal(
+                                            cb.upper(
+                                                    root.get(
+                                                                    "estadoCaso"
+                                                            )
+                                                            .as(
+                                                                    String.class
+                                                            )
+                                            ),
+                                            "CERRADO"
+                                    ),
+                                    cb.equal(
+                                            cb.upper(
+                                                    root.get(
+                                                                    "estadoCaso"
+                                                            )
+                                                            .as(
+                                                                    String.class
+                                                            )
+                                            ),
+                                            "CANCELADO"
+                                    ),
+                                    cb.equal(
+                                            cb.upper(
+                                                    root.get(
+                                                                    "estadoVisita"
+                                                            )
+                                                            .as(
+                                                                    String.class
+                                                            )
+                                            ),
+                                            "REALIZADA"
+                                    ),
+                                    cb.equal(
+                                            cb.upper(
+                                                    root.get(
+                                                                    "estadoVisita"
+                                                            )
+                                                            .as(
+                                                                    String.class
+                                                            )
+                                            ),
+                                            "CANCELADA"
+                                    ),
+                                    cb.isTrue(
+                                            root.get(
+                                                    "encuestaRealizada"
+                                            )
+                                    )
                             )
                     );
                 }
 
-                if ("CON_ENCUESTADOR".equals(condicion)) {
+                if (
+                        "CON_ENCUESTADOR".equals(
+                                condicion
+                        )
+                ) {
                     predicate = cb.and(
                             predicate,
                             cb.or(
-                                    cb.isNotNull(root.get("encuestadorAsignado")),
-                                    cb.isNotNull(root.get("encuestadorProgramado"))
+                                    cb.isNotNull(
+                                            root.get(
+                                                    "encuestadorAsignado"
+                                            )
+                                    ),
+                                    cb.isNotNull(
+                                            root.get(
+                                                    "encuestadorProgramado"
+                                            )
+                                    )
                             )
                     );
                 }
 
-                if ("SIN_ENCUESTADOR".equals(condicion)) {
+                if (
+                        "SIN_ENCUESTADOR".equals(
+                                condicion
+                        )
+                ) {
                     predicate = cb.and(
                             predicate,
-                            cb.isNull(root.get("encuestadorAsignado")),
-                            cb.isNull(root.get("encuestadorProgramado"))
+                            cb.isNull(
+                                    root.get(
+                                            "encuestadorAsignado"
+                                    )
+                            ),
+                            cb.isNull(
+                                    root.get(
+                                            "encuestadorProgramado"
+                                    )
+                            )
                     );
                 }
             }
@@ -338,19 +678,82 @@ public final class CallCenterRegistroSpecification {
                 String value = like(filter.q());
 
                 var qPredicate = cb.or(
-                        cb.like(cb.lower(root.get("cedulaSolicitante")), value),
-                        cb.like(cb.lower(root.get("nombreCompleto")), value),
-                        cb.like(cb.lower(root.get("telefono")), value),
-                        cb.like(cb.lower(root.get("direccionTexto")), value),
-                        cb.like(cb.lower(root.get("motivoNoContactoTexto")), value),
-                        cb.like(cb.lower(root.get("motivoNoDisposicionTexto")), value),
-                        cb.like(cb.lower(root.get("observacionEncuestador")), value),
-                        cb.like(cb.lower(root.get("observacion")), value),
-                        cb.like(cb.lower(root.get("estadoCaso")), value),
-                        cb.like(cb.lower(root.get("tipoSolicitudCallcenter")), value)
+                        cb.like(
+                                cb.lower(
+                                        root.get(
+                                                "cedulaSolicitante"
+                                        )
+                                ),
+                                value
+                        ),
+                        cb.like(
+                                cb.lower(
+                                        root.get("nombreCompleto")
+                                ),
+                                value
+                        ),
+                        cb.like(
+                                cb.lower(
+                                        root.get("telefono")
+                                ),
+                                value
+                        ),
+                        cb.like(
+                                cb.lower(
+                                        root.get("direccionTexto")
+                                ),
+                                value
+                        ),
+                        cb.like(
+                                cb.lower(
+                                        root.get(
+                                                "motivoNoContactoTexto"
+                                        )
+                                ),
+                                value
+                        ),
+                        cb.like(
+                                cb.lower(
+                                        root.get(
+                                                "motivoNoDisposicionTexto"
+                                        )
+                                ),
+                                value
+                        ),
+                        cb.like(
+                                cb.lower(
+                                        root.get(
+                                                "observacionEncuestador"
+                                        )
+                                ),
+                                value
+                        ),
+                        cb.like(
+                                cb.lower(
+                                        root.get("observacion")
+                                ),
+                                value
+                        ),
+                        cb.like(
+                                cb.lower(
+                                        root.get("estadoCaso")
+                                ),
+                                value
+                        ),
+                        cb.like(
+                                cb.lower(
+                                        root.get(
+                                                "tipoSolicitudCallcenter"
+                                        )
+                                ),
+                                value
+                        )
                 );
 
-                predicate = cb.and(predicate, qPredicate);
+                predicate = cb.and(
+                        predicate,
+                        qPredicate
+                );
             }
 
             return predicate;
@@ -363,55 +766,71 @@ public final class CallCenterRegistroSpecification {
      * @param userId identificador del usuario funcionario.
      * @return especificación por funcionario asignado.
      */
-    public static Specification<CallCenterRegistro> byFuncionarioCallcenterAsignado(Long userId) {
+    public static Specification<CallCenterRegistro>
+    byFuncionarioCallcenterAsignado(
+            Long userId
+    ) {
         return (root, query, cb) -> cb.and(
                 cb.isTrue(root.get("activo")),
-                cb.equal(root.get("funcionarioCallcenterAsignado").get("id"), userId)
+                cb.equal(
+                        root.get(
+                                        "funcionarioCallcenterAsignado"
+                                )
+                                .get("id"),
+                        userId
+                )
         );
     }
 
     /**
      * Consulta casos pendientes de asignar a funcionario Call Center.
      *
-     * Esta especificación alimenta la vista del Coordinador / Enrutador.
      * Solo retorna casos activos, de nueva encuesta, no realizados, sin
      * funcionario asignado y en estado PENDIENTE_ENRUTAMIENTO.
      *
      * @return especificación de pendientes para enrutamiento.
      */
-    public static Specification<CallCenterRegistro> pendientesAsignarFuncionarioCallcenter() {
+    public static Specification<CallCenterRegistro>
+    pendientesAsignarFuncionarioCallcenter() {
         return (root, query, cb) -> cb.and(
                 cb.isTrue(root.get("activo")),
-                cb.isTrue(root.get("solicitoNuevaEncuesta")),
-                cb.or(
-                        cb.isFalse(root.get("encuestaRealizada")),
-                        cb.isNull(root.get("encuestaRealizada"))
+                cb.isTrue(
+                        root.get("solicitoNuevaEncuesta")
                 ),
-                cb.isNull(root.get("funcionarioCallcenterAsignado")),
                 cb.or(
-                        cb.equal(root.get("estadoCaso"), "PENDIENTE_ENRUTAMIENTO"),
-                        cb.isNull(root.get("estadoCaso"))
+                        cb.isFalse(
+                                root.get("encuestaRealizada")
+                        ),
+                        cb.isNull(
+                                root.get("encuestaRealizada")
+                        )
+                ),
+                cb.isNull(
+                        root.get(
+                                "funcionarioCallcenterAsignado"
+                        )
+                ),
+                cb.or(
+                        cb.equal(
+                                root.get("estadoCaso"),
+                                "PENDIENTE_ENRUTAMIENTO"
+                        ),
+                        cb.isNull(
+                                root.get("estadoCaso")
+                        )
                 )
         );
     }
 
-    /**
-     * Valida si un texto contiene caracteres útiles.
-     *
-     * @param value texto a evaluar.
-     * @return true si el texto tiene contenido.
-     */
     private static boolean hasText(String value) {
-        return value != null && !value.trim().isBlank();
+        return value != null
+                && !value.trim().isBlank();
     }
 
-    /**
-     * Convierte un texto en patrón LIKE insensible a mayúsculas.
-     *
-     * @param value texto recibido.
-     * @return patrón LIKE.
-     */
     private static String like(String value) {
-        return "%" + value.trim().toLowerCase(Locale.ROOT) + "%";
+        return "%"
+                + value.trim()
+                .toLowerCase(Locale.ROOT)
+                + "%";
     }
 }
