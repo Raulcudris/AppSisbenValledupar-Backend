@@ -81,17 +81,7 @@ public class CallCenterController {
      * @param size tamaño de página.
      * @return página de registros asignados.
      */
-    @PreAuthorize(
-            "hasAnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'AnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
-                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER'" +
-                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER', 'FUNCIONARIO_CALLCENTER')"
-    )
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_WRITE)
     @GetMapping("/mis-registros-callcenter")
     public ApiResponse<PageResponse<CallCenterResponse>> misRegistrosCallcenter(
             @ModelAttribute CallCenterFilterRequest filter,
@@ -107,9 +97,13 @@ public class CallCenterController {
                 )
         );
 
-        return ApiResponse.ok(service.misRegistrosCallcenter(filter, pageable));
+        return ApiResponse.ok(
+                service.misRegistrosCallcenter(
+                        filter,
+                        pageable
+                )
+        );
     }
-
     @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGN_FUNCIONARIO)
     @GetMapping("/catalogs/funcionarios-callcenter")
     public ApiResponse<List<CallCenterUserOptionResponse>> funcionariosCallcenter() {
@@ -138,19 +132,8 @@ public class CallCenterController {
         );
     }
 
-    /*
-     * IMPORTANTE:
-     * Este endpoint debe estar antes de @GetMapping("/{id}")
-     * para evitar que Spring intente interpretar "mis-asignaciones" como un Long.
-     */
-    @PreAuthorize(
-            "hasAnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER', " +
-                    "'FUNCIONARIO_ENCUESTADOR', 'ROLE_FUNCIONARIO_ENCUESTADOR'" +
-                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_CALLCENTER', 'FUNCIONARIO_ENCUESTADOR')"
-    )
+
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGNMENTS_READ)
     @GetMapping("/mis-asignaciones")
     public ApiResponse<PageResponse<CallCenterResponse>> misAsignaciones(
             @RequestParam(defaultValue = "0") int page,
@@ -166,9 +149,10 @@ public class CallCenterController {
                 )
         );
 
-        return ApiResponse.ok(service.misAsignaciones(pageable));
+        return ApiResponse.ok(
+                service.misAsignaciones(pageable)
+        );
     }
-
     @PreAuthorize(AppRolePreAuthorize.CALLCENTER_READ)
     @GetMapping("/catalogs/motivos-no-contacto")
     public ApiResponse<List<CallCenterCatalogResponse>> motivosNoContacto() {
@@ -213,20 +197,16 @@ public class CallCenterController {
      * estado de visita, fecha/hora real, encuesta realizada, motivo, reprogramación,
      * observación del encuestador y verificación.
      */
-    @PreAuthorize(
-            "hasAnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER', " +
-                    "'FUNCIONARIO_ENCUESTADOR', 'ROLE_FUNCIONARIO_ENCUESTADOR'" +
-                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_CALLCENTER', 'FUNCIONARIO_ENCUESTADOR')"
-    )
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_LEGACY_VISIT_UPDATE)
     @PatchMapping("/{id}/visita")
     public ApiResponse<CallCenterResponse> updateVisita(
             @PathVariable Long id,
             @Valid @RequestBody CallCenterVisitaRequest request
     ) {
-        return ApiResponse.ok("Resultado de visita actualizado correctamente", service.updateVisita(id, request));
+        return ApiResponse.ok(
+                "Resultado de visita actualizado correctamente",
+                service.updateVisita(id, request)
+        );
     }
 
     @PreAuthorize(AppRolePreAuthorize.CALLCENTER_WRITE)

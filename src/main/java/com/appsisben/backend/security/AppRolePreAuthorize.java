@@ -6,23 +6,23 @@ public final class AppRolePreAuthorize {
             "isAuthenticated()";
 
     public static final String ADMIN =
-            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN') or hasRole('ADMIN')";
+            "hasRole('ADMIN')";
 
     public static final String ADMIN_OR_SUPERVISOR =
-            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR') " +
-                    "or hasAnyRole('ADMIN', 'SUPERVISOR')";
+            "hasAnyRole('ADMIN', 'SUPERVISOR')";
 
     public static final String ADMIN_SUPERVISOR_OR_CONSULTA =
-            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', 'CONSULTA', 'ROLE_CONSULTA') " +
-                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'CONSULTA')";
+            "hasAnyRole('ADMIN', 'SUPERVISOR', 'CONSULTA')";
 
     public static final String CATALOG_READ =
-            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'FUNCIONARIO_VENTANILLA', 'ROLE_FUNCIONARIO_VENTANILLA', " +
-                    "'FUNCIONARIO_DMC', 'ROLE_FUNCIONARIO_DMC', " +
-                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER', " +
-                    "'CONSULTA', 'ROLE_CONSULTA') " +
-                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_VENTANILLA', 'FUNCIONARIO_DMC', 'FUNCIONARIO_CALLCENTER', 'CONSULTA')";
+            "hasAnyRole(" +
+                    "'ADMIN', " +
+                    "'SUPERVISOR', " +
+                    "'FUNCIONARIO_VENTANILLA', " +
+                    "'FUNCIONARIO_DMC', " +
+                    "'FUNCIONARIO_CALLCENTER', " +
+                    "'CONSULTA'" +
+                    ")";
 
     public static final String CATALOG_WRITE =
             ADMIN_OR_SUPERVISOR;
@@ -34,57 +34,110 @@ public final class AppRolePreAuthorize {
             CATALOG_WRITE;
 
     public static final String VENTANILLA_READ =
-            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'FUNCIONARIO_VENTANILLA', 'ROLE_FUNCIONARIO_VENTANILLA', 'CONSULTA', 'ROLE_CONSULTA') " +
-                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_VENTANILLA', 'CONSULTA')";
+            "hasAnyRole(" +
+                    "'ADMIN', " +
+                    "'SUPERVISOR', " +
+                    "'FUNCIONARIO_VENTANILLA', " +
+                    "'CONSULTA'" +
+                    ")";
 
     public static final String VENTANILLA_WRITE =
-            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'FUNCIONARIO_VENTANILLA', 'ROLE_FUNCIONARIO_VENTANILLA') " +
-                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_VENTANILLA')";
+            "hasAnyRole(" +
+                    "'ADMIN', " +
+                    "'SUPERVISOR', " +
+                    "'FUNCIONARIO_VENTANILLA'" +
+                    ")";
 
     public static final String DMC_READ =
-            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'FUNCIONARIO_DMC', 'ROLE_FUNCIONARIO_DMC', 'CONSULTA', 'ROLE_CONSULTA') " +
-                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_DMC', 'CONSULTA')";
+            "hasAnyRole(" +
+                    "'ADMIN', " +
+                    "'SUPERVISOR', " +
+                    "'FUNCIONARIO_DMC', " +
+                    "'CONSULTA'" +
+                    ")";
 
     public static final String DMC_WRITE =
-            "hasAnyAuthority('ADMIN', 'ROLE_ADMIN', 'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'FUNCIONARIO_DMC', 'ROLE_FUNCIONARIO_DMC') " +
-                    "or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_DMC')";
+            "hasAnyRole(" +
+                    "'ADMIN', " +
+                    "'SUPERVISOR', " +
+                    "'FUNCIONARIO_DMC'" +
+                    ")";
 
+    /**
+     * Lectura general de casos, catálogos, llamadas y visitas.
+     */
     public static final String CALLCENTER_READ =
-            "hasAnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
-                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER', " +
-                    "'FUNCIONARIO_ENCUESTADOR', 'ROLE_FUNCIONARIO_ENCUESTADOR', " +
-                    "'CONSULTA', 'ROLE_CONSULTA'" +
-                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER', 'FUNCIONARIO_CALLCENTER', 'FUNCIONARIO_ENCUESTADOR', 'CONSULTA')";
+            "hasAnyRole(" +
+                    "'ADMIN', " +
+                    "'SUPERVISOR', " +
+                    "'COORDINADOR_CALLCENTER', " +
+                    "'FUNCIONARIO_CALLCENTER', " +
+                    "'FUNCIONARIO_ENCUESTADOR', " +
+                    "'CONSULTA'" +
+                    ")";
 
+    /**
+     * Creación y actualización de casos, llamadas y asignaciones de visitas.
+     */
     public static final String CALLCENTER_WRITE =
-            "hasAnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
-                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER'" +
-                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER', 'FUNCIONARIO_CALLCENTER')";
+            "hasAnyRole(" +
+                    "'ADMIN', " +
+                    "'SUPERVISOR', " +
+                    "'COORDINADOR_CALLCENTER', " +
+                    "'FUNCIONARIO_CALLCENTER'" +
+                    ")";
 
+    /**
+     * Asignación de casos a funcionarios de Call Center.
+     */
     public static final String CALLCENTER_ASSIGN_FUNCIONARIO =
-            "hasAnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER'" +
-                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER')";
+            "hasAnyRole(" +
+                    "'ADMIN', " +
+                    "'SUPERVISOR', " +
+                    "'COORDINADOR_CALLCENTER'" +
+                    ")";
 
+    /**
+     * Asignación de encuestadores o visitas.
+     */
     public static final String CALLCENTER_ASSIGN_ENCUESTADOR =
-            "hasAnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
-                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER'" +
-                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER', 'FUNCIONARIO_CALLCENTER')";
+            CALLCENTER_WRITE;
+
+    /**
+     * Consulta de asignaciones personales.
+     *
+     * Mantiene los roles presentes en el endpoint existente:
+     * administrador, supervisor, funcionario Call Center y encuestador.
+     */
+    public static final String CALLCENTER_ASSIGNMENTS_READ =
+            "hasAnyRole(" +
+                    "'ADMIN', " +
+                    "'SUPERVISOR', " +
+                    "'FUNCIONARIO_CALLCENTER', " +
+                    "'FUNCIONARIO_ENCUESTADOR'" +
+                    ")";
+
+    /**
+     * Actualización formal del resultado de una visita.
+     */
+    public static final String CALLCENTER_VISIT_UPDATE =
+            "hasAnyRole(" +
+                    "'ADMIN', " +
+                    "'SUPERVISOR', " +
+                    "'FUNCIONARIO_ENCUESTADOR'" +
+                    ")";
+
+    /**
+     * Compatibilidad con el endpoint legacy que actualiza directamente
+     * los campos de visita del caso maestro.
+     */
+    public static final String CALLCENTER_LEGACY_VISIT_UPDATE =
+            "hasAnyRole(" +
+                    "'ADMIN', " +
+                    "'SUPERVISOR', " +
+                    "'FUNCIONARIO_CALLCENTER', " +
+                    "'FUNCIONARIO_ENCUESTADOR'" +
+                    ")";
 
     public static final String REPORT_READ =
             ADMIN_SUPERVISOR_OR_CONSULTA;

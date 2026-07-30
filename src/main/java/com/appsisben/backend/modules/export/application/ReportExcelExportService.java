@@ -121,7 +121,6 @@ public class ReportExcelExportService {
         rowIndex = addMetric(sheet, rowIndex, "Revisar", summary.revisar(), dateStyle);
         rowIndex = addMetric(sheet, rowIndex, "Extranjeros", summary.extranjeros(), dateStyle);
         addMetric(sheet, rowIndex, "Nacionales", summary.nacionales(), dateStyle);
-
         ExcelWorkbookUtil.autoSize(sheet, 2);
     }
 
@@ -141,7 +140,7 @@ public class ReportExcelExportService {
         rowIndex = addMetric(sheet, rowIndex, "Total cantidad", summary.totalCantidad(), dateStyle);
         rowIndex = addMetric(sheet, rowIndex, "Total cargadas", summary.totalCargadas(), dateStyle);
         rowIndex = addMetric(sheet, rowIndex, "Total descargadas", summary.totalDescargadas(), dateStyle);
-        addMetric(sheet, rowIndex, "Total rechazadas", summary.totalRechazadas(), dateStyle);
+
 
         ExcelWorkbookUtil.autoSize(sheet, 2);
     }

@@ -25,9 +25,16 @@ public class DmcReportService {
         return new DmcReportSummaryResponse(
                 safe(repository.countInDateRange(fechaInicio, fechaFin)),
                 safe(repository.sumCantidadInDateRange(fechaInicio, fechaFin)),
-                safe(repository.sumCantidadByTipoCodigo("CARGADAS", fechaInicio, fechaFin)),
-                safe(repository.sumCantidadByTipoCodigo("DESCARGADAS", fechaInicio, fechaFin)),
-                safe(repository.sumCantidadByTipoCodigo("RECHAZADAS", fechaInicio, fechaFin))
+                safe(repository.sumCantidadByTipoCodigo(
+                        "CARGADAS",
+                        fechaInicio,
+                        fechaFin
+                )),
+                safe(repository.sumCantidadByTipoCodigo(
+                        "DESCARGADAS",
+                        fechaInicio,
+                        fechaFin
+                ))
         );
     }
 

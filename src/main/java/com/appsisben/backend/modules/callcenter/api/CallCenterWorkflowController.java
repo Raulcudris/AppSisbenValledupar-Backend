@@ -2,6 +2,7 @@ package com.appsisben.backend.modules.callcenter.api;
 
 import com.appsisben.backend.modules.callcenter.application.CallCenterWorkflowService;
 import com.appsisben.backend.modules.callcenter.dto.*;
+import com.appsisben.backend.security.AppRolePreAuthorize;
 import com.appsisben.backend.shared.api.ApiResponse;
 import com.appsisben.backend.shared.api.PageResponse;
 import jakarta.validation.Valid;
@@ -34,39 +35,6 @@ import java.util.List;
 @RequestMapping("/api/callcenter")
 public class CallCenterWorkflowController {
 
-    /**
-     * Permisos de lectura del módulo Call Center.
-     */
-    private static final String CALLCENTER_READ =
-            "hasAnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
-                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER', " +
-                    "'FUNCIONARIO_ENCUESTADOR', 'ROLE_FUNCIONARIO_ENCUESTADOR', " +
-                    "'CONSULTA', 'ROLE_CONSULTA'" +
-                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER', 'FUNCIONARIO_CALLCENTER', 'FUNCIONARIO_ENCUESTADOR', 'CONSULTA')";
-
-    /**
-     * Permisos para registrar llamadas y asignar visitas.
-     */
-    private static final String CALLCENTER_MANAGE =
-            "hasAnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'COORDINADOR_CALLCENTER', 'ROLE_COORDINADOR_CALLCENTER', " +
-                    "'FUNCIONARIO_CALLCENTER', 'ROLE_FUNCIONARIO_CALLCENTER'" +
-                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'COORDINADOR_CALLCENTER', 'FUNCIONARIO_CALLCENTER')";
-
-    /**
-     * Permisos para actualizar resultado de visita.
-     */
-    private static final String CALLCENTER_VISIT_UPDATE =
-            "hasAnyAuthority(" +
-                    "'ADMIN', 'ROLE_ADMIN', " +
-                    "'SUPERVISOR', 'ROLE_SUPERVISOR', " +
-                    "'FUNCIONARIO_ENCUESTADOR', 'ROLE_FUNCIONARIO_ENCUESTADOR'" +
-                    ") or hasAnyRole('ADMIN', 'SUPERVISOR', 'FUNCIONARIO_ENCUESTADOR')";
 
     private final CallCenterWorkflowService service;
 
@@ -75,10 +43,12 @@ public class CallCenterWorkflowController {
      *
      * @return resultados activos de llamada.
      */
-    @PreAuthorize(CALLCENTER_READ)
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_READ)
     @GetMapping("/catalogs/resultados-llamada")
     public ApiResponse<List<CallCenterResultadoLlamadaResponse>> findResultadosLlamada() {
-        return ApiResponse.ok(service.findResultadosLlamada());
+        return ApiResponse.ok(
+                service.findResultadosLlamada()
+        );
     }
 
     /**
@@ -87,10 +57,14 @@ public class CallCenterWorkflowController {
      * @param id identificador del caso maestro.
      * @return gestiones de llamada del caso.
      */
-    @PreAuthorize(CALLCENTER_READ)
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_READ)
     @GetMapping("/{id}/llamadas")
-    public ApiResponse<List<CallCenterGestionLlamadaResponse>> findLlamadasByCaso(@PathVariable Long id) {
-        return ApiResponse.ok(service.findLlamadasByCaso(id));
+    public ApiResponse<List<CallCenterGestionLlamadaResponse>> findLlamadasByCaso(
+            @PathVariable Long id
+    ) {
+        return ApiResponse.ok(
+                service.findLlamadasByCaso(id)
+        );
     }
 
     /**
@@ -100,13 +74,16 @@ public class CallCenterWorkflowController {
      * @param request datos de la llamada.
      * @return gestión creada.
      */
-    @PreAuthorize(CALLCENTER_MANAGE)
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_WRITE)
     @PostMapping("/{id}/llamadas")
     public ApiResponse<CallCenterGestionLlamadaResponse> registrarLlamada(
             @PathVariable Long id,
             @Valid @RequestBody CallCenterGestionLlamadaRequest request
     ) {
-        return ApiResponse.ok("Gestión de llamada registrada correctamente", service.registrarLlamada(id, request));
+        return ApiResponse.ok(
+                "Gestión de llamada registrada correctamente",
+                service.registrarLlamada(id, request)
+        );
     }
 
     /**
@@ -115,10 +92,14 @@ public class CallCenterWorkflowController {
      * @param id identificador del caso maestro.
      * @return visitas del caso.
      */
-    @PreAuthorize(CALLCENTER_READ)
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_READ)
     @GetMapping("/{id}/visitas")
-    public ApiResponse<List<CallCenterVisitaResponse>> findVisitasByCaso(@PathVariable Long id) {
-        return ApiResponse.ok(service.findVisitasByCaso(id));
+    public ApiResponse<List<CallCenterVisitaResponse>> findVisitasByCaso(
+            @PathVariable Long id
+    ) {
+        return ApiResponse.ok(
+                service.findVisitasByCaso(id)
+        );
     }
 
     /**
@@ -128,13 +109,16 @@ public class CallCenterWorkflowController {
      * @param request datos de asignación.
      * @return visita creada.
      */
-    @PreAuthorize(CALLCENTER_MANAGE)
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGN_ENCUESTADOR)
     @PostMapping("/{id}/visitas")
     public ApiResponse<CallCenterVisitaResponse> asignarVisita(
             @PathVariable Long id,
             @Valid @RequestBody CallCenterVisitaAsignacionRequest request
     ) {
-        return ApiResponse.ok("Visita asignada correctamente", service.asignarVisita(id, request));
+        return ApiResponse.ok(
+                "Visita asignada correctamente",
+                service.asignarVisita(id, request)
+        );
     }
 
     /**
@@ -153,7 +137,7 @@ public class CallCenterWorkflowController {
      * @param fechaHasta fecha programada final.
      * @return página de visitas.
      */
-    @PreAuthorize(CALLCENTER_READ)
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_READ)
     @GetMapping("/visitas/mis-asignaciones")
     public ApiResponse<PageResponse<CallCenterVisitaResponse>> misVisitas(
             @RequestParam(defaultValue = "0") int page,
@@ -193,7 +177,7 @@ public class CallCenterWorkflowController {
      * @param request datos del resultado.
      * @return visita actualizada.
      */
-    @PreAuthorize(CALLCENTER_VISIT_UPDATE)
+    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_VISIT_UPDATE)
     @PatchMapping("/visitas/{visitaId}/resultado")
     public ApiResponse<CallCenterVisitaResponse> actualizarResultadoVisita(
             @PathVariable Long visitaId,
@@ -201,7 +185,10 @@ public class CallCenterWorkflowController {
     ) {
         return ApiResponse.ok(
                 "Resultado de visita actualizado correctamente",
-                service.actualizarResultadoVisita(visitaId, request)
+                service.actualizarResultadoVisita(
+                        visitaId,
+                        request
+                )
         );
     }
 }

@@ -28,13 +28,18 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class DmcService {
 
     private static final String TABLE_NAME = "dmc_registro";
+
+    private static final Set<String> ALLOWED_TIPO_DMC_CODES =
+            Set.of("CARGADAS", "DESCARGADAS");
 
     private final DmcRegistroRepository repository;
     private final UserRepository userRepository;
@@ -59,7 +64,10 @@ public class DmcService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<DmcResponse> search(DmcFilterRequest filter, Pageable pageable) {
+    public PageResponse<DmcResponse> search(
+            DmcFilterRequest filter,
+            Pageable pageable
+    ) {
         Page<DmcRegistro> page = repository.findAll(
                 DmcSpecification.byFilter(filter),
                 pageable
@@ -101,7 +109,10 @@ public class DmcService {
     }
 
     @Transactional
-    public DmcResponse update(Long id, DmcRequest request) {
+    public DmcResponse update(
+            Long id,
+            DmcRequest request
+    ) {
         DmcRegistro entity = findActiveEntity(id);
         Map<String, Object> before = snapshot(entity);
 
@@ -136,28 +147,48 @@ public class DmcService {
 
     private DmcRegistro findEntity(Long id) {
         return repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Registro DMC no encontrado"));
+                .orElseThrow(
+                        () -> new ResourceNotFoundException(
+                                "Registro DMC no encontrado"
+                        )
+                );
     }
 
     private DmcRegistro findActiveEntity(Long id) {
         DmcRegistro entity = findEntity(id);
 
         if (!Boolean.TRUE.equals(entity.getActivo())) {
-            throw new ResourceNotFoundException("Registro DMC no encontrado");
+            throw new ResourceNotFoundException(
+                    "Registro DMC no encontrado"
+            );
         }
 
         return entity;
     }
 
-    private void apply(DmcRegistro entity, DmcRequest request) {
-        TipoDmc tipoDmc = tipoDmcRepository.findById(request.tipoDmcId())
-                .orElseThrow(() -> new ResourceNotFoundException("Tipo DMC no encontrado"));
+    private void apply(
+            DmcRegistro entity,
+            DmcRequest request
+    ) {
+        TipoDmc tipoDmc = findValidTipoDmc(
+                request.tipoDmcId()
+        );
 
-        Encuestador encuestador = encuestadorRepository.findById(request.encuestadorId())
-                .orElseThrow(() -> new ResourceNotFoundException("Encuestador no encontrado"));
+        Encuestador encuestador = encuestadorRepository
+                .findById(request.encuestadorId())
+                .orElseThrow(
+                        () -> new ResourceNotFoundException(
+                                "Encuestador no encontrado"
+                        )
+                );
 
-        Barrio barrio = barrioRepository.findById(request.barrioId())
-                .orElseThrow(() -> new ResourceNotFoundException("Barrio no encontrado"));
+        Barrio barrio = barrioRepository
+                .findById(request.barrioId())
+                .orElseThrow(
+                        () -> new ResourceNotFoundException(
+                                "Barrio no encontrado"
+                        )
+                );
 
         entity.setFecha(request.fecha());
         entity.setTipoDmc(tipoDmc);
@@ -167,33 +198,97 @@ public class DmcService {
         entity.setBarrio(barrio);
     }
 
-    private User currentUser() {
-        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+    private TipoDmc findValidTipoDmc(Long tipoDmcId) {
+        TipoDmc tipoDmc = tipoDmcRepository
+                .findById(tipoDmcId)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException(
+                                "Tipo DMC no encontrado"
+                        )
+                );
 
-        if (username == null || username.isBlank() || "anonymousUser".equals(username)) {
-            throw new BusinessException("No hay usuario autenticado");
+        if (!Boolean.TRUE.equals(tipoDmc.getActivo())) {
+            throw new BusinessException(
+                    "El tipo DMC seleccionado está inactivo"
+            );
         }
 
-        return userRepository.findByUsernameIgnoreCase(username)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario autenticado no encontrado"));
+        String codigo = tipoDmc.getCodigo() == null
+                ? ""
+                : tipoDmc.getCodigo()
+                .trim()
+                .toUpperCase(Locale.ROOT);
+
+        if (!ALLOWED_TIPO_DMC_CODES.contains(codigo)) {
+            throw new BusinessException(
+                    "El tipo DMC seleccionado no está permitido. "
+                            + "Los únicos tipos válidos son CARGADAS y DESCARGADAS"
+            );
+        }
+
+        return tipoDmc;
+    }
+
+    private User currentUser() {
+        String username = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+
+        if (
+                username == null
+                        || username.isBlank()
+                        || "anonymousUser".equals(username)
+        ) {
+            throw new BusinessException(
+                    "No hay usuario autenticado"
+            );
+        }
+
+        return userRepository
+                .findByUsernameIgnoreCase(username)
+                .orElseThrow(
+                        () -> new ResourceNotFoundException(
+                                "Usuario autenticado no encontrado"
+                        )
+                );
     }
 
     private DmcResponse toResponse(DmcRegistro entity) {
         return new DmcResponse(
                 entity.getId(),
                 entity.getFecha(),
-                entity.getFuncionario() != null ? entity.getFuncionario().getId() : null,
-                entity.getFuncionario() != null ? entity.getFuncionario().getUsername() : null,
-                entity.getTipoDmc() != null ? entity.getTipoDmc().getId() : null,
-                entity.getTipoDmc() != null ? entity.getTipoDmc().getCodigo() : null,
-                entity.getTipoDmc() != null ? entity.getTipoDmc().getNombre() : null,
-                entity.getEncuestador() != null ? entity.getEncuestador().getId() : null,
-                entity.getEncuestador() != null ? entity.getEncuestador().getNombre() : null,
+                entity.getFuncionario() != null
+                        ? entity.getFuncionario().getId()
+                        : null,
+                entity.getFuncionario() != null
+                        ? entity.getFuncionario().getUsername()
+                        : null,
+                entity.getTipoDmc() != null
+                        ? entity.getTipoDmc().getId()
+                        : null,
+                entity.getTipoDmc() != null
+                        ? entity.getTipoDmc().getCodigo()
+                        : null,
+                entity.getTipoDmc() != null
+                        ? entity.getTipoDmc().getNombre()
+                        : null,
+                entity.getEncuestador() != null
+                        ? entity.getEncuestador().getId()
+                        : null,
+                entity.getEncuestador() != null
+                        ? entity.getEncuestador().getNombre()
+                        : null,
                 entity.getCantidad(),
                 entity.getObservacion(),
-                entity.getBarrio() != null ? entity.getBarrio().getId() : null,
-                entity.getBarrio() != null ? entity.getBarrio().getNombre() : null,
-                entity.getBarrio() != null && entity.getBarrio().getComuna() != null
+                entity.getBarrio() != null
+                        ? entity.getBarrio().getId()
+                        : null,
+                entity.getBarrio() != null
+                        ? entity.getBarrio().getNombre()
+                        : null,
+                entity.getBarrio() != null
+                        && entity.getBarrio().getComuna() != null
                         ? entity.getBarrio().getComuna().getNombre()
                         : null,
                 entity.getActivo()
@@ -205,19 +300,80 @@ public class DmcService {
 
         data.put("id", entity.getId());
         data.put("fecha", entity.getFecha());
-        data.put("funcionarioId", entity.getFuncionario() != null ? entity.getFuncionario().getId() : null);
-        data.put("funcionarioUsername", entity.getFuncionario() != null ? entity.getFuncionario().getUsername() : null);
-        data.put("tipoDmcId", entity.getTipoDmc() != null ? entity.getTipoDmc().getId() : null);
-        data.put("tipoDmcCodigo", entity.getTipoDmc() != null ? entity.getTipoDmc().getCodigo() : null);
-        data.put("tipoDmcNombre", entity.getTipoDmc() != null ? entity.getTipoDmc().getNombre() : null);
-        data.put("encuestadorId", entity.getEncuestador() != null ? entity.getEncuestador().getId() : null);
-        data.put("encuestadorNombre", entity.getEncuestador() != null ? entity.getEncuestador().getNombre() : null);
+
+        data.put(
+                "funcionarioId",
+                entity.getFuncionario() != null
+                        ? entity.getFuncionario().getId()
+                        : null
+        );
+
+        data.put(
+                "funcionarioUsername",
+                entity.getFuncionario() != null
+                        ? entity.getFuncionario().getUsername()
+                        : null
+        );
+
+        data.put(
+                "tipoDmcId",
+                entity.getTipoDmc() != null
+                        ? entity.getTipoDmc().getId()
+                        : null
+        );
+
+        data.put(
+                "tipoDmcCodigo",
+                entity.getTipoDmc() != null
+                        ? entity.getTipoDmc().getCodigo()
+                        : null
+        );
+
+        data.put(
+                "tipoDmcNombre",
+                entity.getTipoDmc() != null
+                        ? entity.getTipoDmc().getNombre()
+                        : null
+        );
+
+        data.put(
+                "encuestadorId",
+                entity.getEncuestador() != null
+                        ? entity.getEncuestador().getId()
+                        : null
+        );
+
+        data.put(
+                "encuestadorNombre",
+                entity.getEncuestador() != null
+                        ? entity.getEncuestador().getNombre()
+                        : null
+        );
+
         data.put("cantidad", entity.getCantidad());
-        data.put("barrioId", entity.getBarrio() != null ? entity.getBarrio().getId() : null);
-        data.put("barrioNombre", entity.getBarrio() != null ? entity.getBarrio().getNombre() : null);
-        data.put("comunaNombre", entity.getBarrio() != null && entity.getBarrio().getComuna() != null
-                ? entity.getBarrio().getComuna().getNombre()
-                : null);
+
+        data.put(
+                "barrioId",
+                entity.getBarrio() != null
+                        ? entity.getBarrio().getId()
+                        : null
+        );
+
+        data.put(
+                "barrioNombre",
+                entity.getBarrio() != null
+                        ? entity.getBarrio().getNombre()
+                        : null
+        );
+
+        data.put(
+                "comunaNombre",
+                entity.getBarrio() != null
+                        && entity.getBarrio().getComuna() != null
+                        ? entity.getBarrio().getComuna().getNombre()
+                        : null
+        );
+
         data.put("observacion", entity.getObservacion());
         data.put("activo", entity.getActivo());
 

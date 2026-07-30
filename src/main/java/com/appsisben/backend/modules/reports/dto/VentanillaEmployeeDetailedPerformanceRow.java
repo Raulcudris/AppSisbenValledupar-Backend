@@ -1,6 +1,5 @@
 package com.appsisben.backend.modules.reports.dto;
 
-
 public record VentanillaEmployeeDetailedPerformanceRow(
         Long funcionarioId,
         String funcionarioUsername,
