@@ -1,5 +1,4 @@
 package com.appsisben.backend.modules.callcenter.api;
-
 import com.appsisben.backend.modules.callcenter.application.CallCenterWorkflowService;
 import com.appsisben.backend.modules.callcenter.dto.*;
 import com.appsisben.backend.security.AppRolePreAuthorize;
@@ -20,7 +19,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
 import java.time.LocalDate;
 import java.util.List;
 

@@ -1,5 +1,6 @@
 package com.appsisben.backend.modules.callcenter.application;
-
+import com.appsisben.backend.modules.audit.application.AuditService;
+import com.appsisben.backend.modules.audit.domain.AuditAction;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterGestionLlamada;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterMotivoNoContacto;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterMotivoNoDisposicion;
@@ -34,17 +35,27 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
 public class CallCenterWorkflowService {
+
+    private static final String TABLE_REGISTRO =
+            "callcenter_registro";
+
+    private static final String TABLE_GESTION_LLAMADA =
+            "callcenter_gestion_llamada";
+
+    private static final String TABLE_VISITA =
+            "callcenter_visita";
 
     private static final String
             MOTIVO_CIERRE_ENCUESTA_REALIZADA =
@@ -72,6 +83,7 @@ public class CallCenterWorkflowService {
             encuestadorRepository;
 
     private final UserRepository userRepository;
+    private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public List<CallCenterResultadoLlamadaResponse>
@@ -178,6 +190,9 @@ public class CallCenterWorkflowService {
                                 targetState
                         );
 
+        Map<String, Object> beforeRegistro =
+                snapshotRegistro(registro);
+
         long intentosPrevios =
                 gestionLlamadaRepository
                         .countByCallCenterRegistroId(
@@ -205,35 +220,27 @@ public class CallCenterWorkflowService {
         entity.setIntentoNumero(
                 (int) intentosPrevios + 1
         );
-
         entity.setLlamadaConectada(
                 llamadaConectada
         );
-
         entity.setResultadoLlamada(
                 resultado.getCodigo()
         );
-
         entity.setMotivoNoContacto(
                 motivoNoContacto
         );
-
         entity.setMotivoNoDisposicion(
                 motivoNoDisposicion
         );
-
         entity.setFechaReprogramacionLlamada(
                 request.fechaReprogramacionLlamada()
         );
-
         entity.setHoraReprogramacionLlamada(
                 request.horaReprogramacionLlamada()
         );
-
         entity.setObservacion(
                 trimToNull(request.observacion())
         );
-
         entity.setCreadoPor(user);
         entity.setActualizadoPor(user);
 
@@ -246,7 +253,32 @@ public class CallCenterWorkflowService {
                 targetState
         );
 
+        applyFinalStateMetadata(
+                registro,
+                targetState,
+                user,
+                buildCallFinalReason(resultado)
+        );
+
         callCenterRegistroRepository.save(registro);
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.CREATE,
+                TABLE_GESTION_LLAMADA,
+                saved.getId(),
+                null,
+                snapshotGestion(saved)
+        );
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.UPDATE,
+                TABLE_REGISTRO,
+                registro.getId(),
+                beforeRegistro,
+                snapshotRegistro(registro)
+        );
 
         return toGestionResponse(saved);
     }
@@ -303,31 +335,29 @@ public class CallCenterWorkflowService {
                         request.encuestadorId()
                 );
 
+        Map<String, Object> beforeRegistro =
+                snapshotRegistro(registro);
+
         CallCenterVisita visita =
                 new CallCenterVisita();
 
         visita.setCallCenterRegistro(registro);
         visita.setEncuestador(encuestador);
         visita.setUsuarioAsigna(user);
-
         visita.setFechaProgramada(
                 request.fechaProgramada()
         );
-
         visita.setHoraProgramada(
                 request.horaProgramada()
         );
-
         visita.setEstadoVisita(
                 programmed
                         ? "PROGRAMADA"
                         : "PENDIENTE"
         );
-
         visita.setObservacionEncuestador(
                 trimToNull(request.observacion())
         );
-
         visita.setCreadoPor(user);
         visita.setActualizadoPor(user);
 
@@ -336,19 +366,34 @@ public class CallCenterWorkflowService {
 
         registro.setEncuestadorAsignado(encuestador);
         registro.setEncuestadorProgramado(encuestador);
-
         registro.setFechaEncuestaProgramada(
                 request.fechaProgramada()
         );
-
         registro.setEstadoVisita(
                 saved.getEstadoVisita()
         );
-
         registro.setEstadoCaso(targetState);
         registro.setActualizadoPor(user);
 
         callCenterRegistroRepository.save(registro);
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.CREATE,
+                TABLE_VISITA,
+                saved.getId(),
+                null,
+                snapshotVisita(saved)
+        );
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.UPDATE,
+                TABLE_REGISTRO,
+                registro.getId(),
+                beforeRegistro,
+                snapshotRegistro(registro)
+        );
 
         return toVisitaResponse(saved);
     }
@@ -455,40 +500,39 @@ public class CallCenterWorkflowService {
                                 targetState
                         );
 
-        visita.setEstadoVisita(estadoVisita);
+        Map<String, Object> beforeVisita =
+                snapshotVisita(visita);
 
+        Map<String, Object> beforeRegistro =
+                snapshotRegistro(registro);
+
+        visita.setEstadoVisita(estadoVisita);
         visita.setFechaVisitaReal(
                 request.fechaVisitaReal() != null
                         ? request.fechaVisitaReal()
                         : LocalDate.now()
         );
-
         visita.setHoraVisitaReal(
                 request.horaVisitaReal() != null
                         ? request.horaVisitaReal()
                         : LocalTime.now().withNano(0)
         );
-
         visita.setEncuestaRealizada(
                 request.encuestaRealizada()
         );
-
         visita.setMotivoNoEncuesta(
                 trimToNull(
                         request.motivoNoEncuesta()
                 )
         );
-
         visita.setFechaReprogramacion(
                 request.fechaReprogramacion()
         );
-
         visita.setObservacionEncuestador(
                 trimToNull(
                         request.observacionEncuestador()
                 )
         );
-
         visita.setActualizadoPor(user);
 
         CallCenterVisita saved =
@@ -497,50 +541,56 @@ public class CallCenterWorkflowService {
         registro.setEstadoVisita(
                 saved.getEstadoVisita()
         );
-
         registro.setFechaVisitaReal(
                 saved.getFechaVisitaReal()
         );
-
         registro.setHoraVisitaReal(
                 saved.getHoraVisitaReal()
         );
-
         registro.setEncuestaRealizada(
                 saved.getEncuestaRealizada()
         );
-
         registro.setMotivoNoEncuesta(
                 saved.getMotivoNoEncuesta()
         );
-
         registro.setFechaReprogramacion(
                 saved.getFechaReprogramacion()
         );
-
         registro.setObservacionEncuestador(
                 saved.getObservacionEncuestador()
         );
-
         registro.setEstadoCaso(targetState);
         registro.setActualizadoPor(user);
 
-        if (
-                CallCenterStatePolicy
-                        .isClosedState(targetState)
-        ) {
-            registro.setFechaCierre(
-                    LocalDateTime.now()
-            );
-
-            registro.setMotivoCierre(
-                    MOTIVO_CIERRE_ENCUESTA_REALIZADA
-            );
-
-            registro.setUsuarioCierre(user);
-        }
+        applyFinalStateMetadata(
+                registro,
+                targetState,
+                user,
+                buildVisitFinalReason(
+                        targetState,
+                        saved
+                )
+        );
 
         callCenterRegistroRepository.save(registro);
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.UPDATE,
+                TABLE_VISITA,
+                saved.getId(),
+                beforeVisita,
+                snapshotVisita(saved)
+        );
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.UPDATE,
+                TABLE_REGISTRO,
+                registro.getId(),
+                beforeRegistro,
+                snapshotRegistro(registro)
+        );
 
         return toVisitaResponse(saved);
     }
@@ -553,29 +603,22 @@ public class CallCenterWorkflowService {
         registro.setFechaLlamada(
                 gestion.getFechaLlamada()
         );
-
         registro.setHoraLlamada(
                 gestion.getHoraLlamada()
         );
-
         registro.setLlamadaConectada(
                 gestion.getLlamadaConectada()
         );
-
         registro.setMotivoNoContacto(
                 gestion.getMotivoNoContacto()
         );
-
         registro.setMotivoNoDisposicion(
                 gestion.getMotivoNoDisposicion()
         );
-
         registro.setObservacion(
                 gestion.getObservacion()
         );
-
         registro.setEstadoCaso(targetState);
-
         registro.setActualizadoPor(
                 gestion.getActualizadoPor()
         );
@@ -1050,6 +1093,278 @@ public class CallCenterWorkflowService {
         return encuestador;
     }
 
+    private void applyFinalStateMetadata(
+            CallCenterRegistro registro,
+            String targetState,
+            User user,
+            String reason
+    ) {
+        if (
+                !CallCenterStatePolicy
+                        .isFinalState(targetState)
+        ) {
+            return;
+        }
+
+        registro.setFechaCierre(
+                LocalDateTime.now()
+        );
+        registro.setUsuarioCierre(user);
+
+        String finalReason = trimToNull(reason);
+
+        registro.setMotivoCierre(
+                finalReason != null
+                        ? limitLength(finalReason, 500)
+                        : "Finalización del caso Call Center"
+        );
+    }
+
+    private String buildCallFinalReason(
+            CallCenterResultadoLlamada resultado
+    ) {
+        String nombre =
+                resultado != null
+                        ? trimToNull(resultado.getNombre())
+                        : null;
+
+        String codigo =
+                resultado != null
+                        ? trimToNull(resultado.getCodigo())
+                        : null;
+
+        if (nombre != null) {
+            return "Resultado de llamada: " + nombre;
+        }
+
+        if (codigo != null) {
+            return "Resultado de llamada: " + codigo;
+        }
+
+        return "Finalización por resultado de llamada";
+    }
+
+    private String buildVisitFinalReason(
+            String targetState,
+            CallCenterVisita visita
+    ) {
+        if (
+                CallCenterStatePolicy
+                        .isClosedState(targetState)
+        ) {
+            return MOTIVO_CIERRE_ENCUESTA_REALIZADA;
+        }
+
+        String motivo =
+                visita != null
+                        ? trimToNull(
+                        visita.getMotivoNoEncuesta()
+                )
+                        : null;
+
+        return motivo != null
+                ? "Visita cancelada: " + motivo
+                : "Visita cancelada";
+    }
+
+    private Map<String, Object> snapshotRegistro(
+            CallCenterRegistro entity
+    ) {
+        Map<String, Object> data =
+                new LinkedHashMap<>();
+
+        data.put("id", entity.getId());
+        data.put("estadoCaso", entity.getEstadoCaso());
+        data.put("estadoVisita", entity.getEstadoVisita());
+        data.put("fechaLlamada", entity.getFechaLlamada());
+        data.put("horaLlamada", entity.getHoraLlamada());
+        data.put("llamadaConectada", entity.getLlamadaConectada());
+
+        data.put(
+                "motivoNoContactoId",
+                entity.getMotivoNoContacto() != null
+                        ? entity.getMotivoNoContacto().getId()
+                        : null
+        );
+
+        data.put(
+                "motivoNoDisposicionId",
+                entity.getMotivoNoDisposicion() != null
+                        ? entity.getMotivoNoDisposicion().getId()
+                        : null
+        );
+
+        data.put(
+                "encuestadorAsignadoId",
+                entity.getEncuestadorAsignado() != null
+                        ? entity.getEncuestadorAsignado().getId()
+                        : null
+        );
+
+        data.put(
+                "encuestadorProgramadoId",
+                entity.getEncuestadorProgramado() != null
+                        ? entity.getEncuestadorProgramado().getId()
+                        : null
+        );
+
+        data.put(
+                "fechaEncuestaProgramada",
+                entity.getFechaEncuestaProgramada()
+        );
+        data.put(
+                "encuestaRealizada",
+                entity.getEncuestaRealizada()
+        );
+        data.put("fechaCierre", entity.getFechaCierre());
+        data.put("motivoCierre", entity.getMotivoCierre());
+
+        data.put(
+                "usuarioCierreId",
+                entity.getUsuarioCierre() != null
+                        ? entity.getUsuarioCierre().getId()
+                        : null
+        );
+
+        return data;
+    }
+
+    private Map<String, Object> snapshotGestion(
+            CallCenterGestionLlamada entity
+    ) {
+        Map<String, Object> data =
+                new LinkedHashMap<>();
+
+        data.put("id", entity.getId());
+
+        data.put(
+                "callCenterRegistroId",
+                entity.getCallCenterRegistro() != null
+                        ? entity.getCallCenterRegistro().getId()
+                        : null
+        );
+
+        data.put(
+                "funcionarioCallcenterId",
+                entity.getFuncionarioCallcenter() != null
+                        ? entity.getFuncionarioCallcenter().getId()
+                        : null
+        );
+
+        data.put("fechaLlamada", entity.getFechaLlamada());
+        data.put("horaLlamada", entity.getHoraLlamada());
+        data.put("intentoNumero", entity.getIntentoNumero());
+        data.put(
+                "llamadaConectada",
+                entity.getLlamadaConectada()
+        );
+        data.put(
+                "resultadoLlamada",
+                entity.getResultadoLlamada()
+        );
+
+        data.put(
+                "motivoNoContactoId",
+                entity.getMotivoNoContacto() != null
+                        ? entity.getMotivoNoContacto().getId()
+                        : null
+        );
+
+        data.put(
+                "motivoNoDisposicionId",
+                entity.getMotivoNoDisposicion() != null
+                        ? entity.getMotivoNoDisposicion().getId()
+                        : null
+        );
+
+        data.put(
+                "fechaReprogramacionLlamada",
+                entity.getFechaReprogramacionLlamada()
+        );
+        data.put(
+                "horaReprogramacionLlamada",
+                entity.getHoraReprogramacionLlamada()
+        );
+        data.put("observacion", entity.getObservacion());
+        data.put("activo", entity.getActivo());
+
+        return data;
+    }
+
+    private Map<String, Object> snapshotVisita(
+            CallCenterVisita entity
+    ) {
+        Map<String, Object> data =
+                new LinkedHashMap<>();
+
+        data.put("id", entity.getId());
+
+        data.put(
+                "callCenterRegistroId",
+                entity.getCallCenterRegistro() != null
+                        ? entity.getCallCenterRegistro().getId()
+                        : null
+        );
+
+        data.put(
+                "encuestadorId",
+                entity.getEncuestador() != null
+                        ? entity.getEncuestador().getId()
+                        : null
+        );
+
+        data.put(
+                "usuarioAsignaId",
+                entity.getUsuarioAsigna() != null
+                        ? entity.getUsuarioAsigna().getId()
+                        : null
+        );
+
+        data.put(
+                "fechaAsignacion",
+                entity.getFechaAsignacion()
+        );
+        data.put(
+                "fechaProgramada",
+                entity.getFechaProgramada()
+        );
+        data.put(
+                "horaProgramada",
+                entity.getHoraProgramada()
+        );
+        data.put(
+                "estadoVisita",
+                entity.getEstadoVisita()
+        );
+        data.put(
+                "fechaVisitaReal",
+                entity.getFechaVisitaReal()
+        );
+        data.put(
+                "horaVisitaReal",
+                entity.getHoraVisitaReal()
+        );
+        data.put(
+                "encuestaRealizada",
+                entity.getEncuestaRealizada()
+        );
+        data.put(
+                "motivoNoEncuesta",
+                entity.getMotivoNoEncuesta()
+        );
+        data.put(
+                "fechaReprogramacion",
+                entity.getFechaReprogramacion()
+        );
+        data.put(
+                "observacionEncuestador",
+                entity.getObservacionEncuestador()
+        );
+        data.put("activo", entity.getActivo());
+
+        return data;
+    }
+
     private CallCenterResultadoLlamadaResponse
     toResultadoResponse(
             CallCenterResultadoLlamada entity
@@ -1257,6 +1572,21 @@ public class CallCenterWorkflowService {
         }
 
         return value.trim();
+    }
+
+    private String limitLength(
+            String value,
+            int maxLength
+    ) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value.length() <= maxLength) {
+            return value;
+        }
+
+        return value.substring(0, maxLength);
     }
 
     private boolean isBlank(
