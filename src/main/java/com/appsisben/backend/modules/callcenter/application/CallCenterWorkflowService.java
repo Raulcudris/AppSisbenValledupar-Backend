@@ -1,4 +1,5 @@
 package com.appsisben.backend.modules.callcenter.application;
+
 import com.appsisben.backend.modules.audit.application.AuditService;
 import com.appsisben.backend.modules.audit.domain.AuditAction;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterGestionLlamada;
@@ -35,6 +36,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -57,8 +59,7 @@ public class CallCenterWorkflowService {
     private static final String TABLE_VISITA =
             "callcenter_visita";
 
-    private static final String
-            MOTIVO_CIERRE_ENCUESTA_REALIZADA =
+    private static final String MOTIVO_CIERRE_ENCUESTA_REALIZADA =
             "Encuesta realizada por encuestador";
 
     private final CallCenterRegistroRepository
@@ -83,11 +84,13 @@ public class CallCenterWorkflowService {
             encuestadorRepository;
 
     private final UserRepository userRepository;
+
     private final AuditService auditService;
 
     @Transactional(readOnly = true)
     public List<CallCenterResultadoLlamadaResponse>
     findResultadosLlamada() {
+
         return resultadoLlamadaRepository
                 .findByActivoTrueOrderByNombreAsc()
                 .stream()
@@ -100,6 +103,7 @@ public class CallCenterWorkflowService {
     findLlamadasByCaso(
             Long callCenterRegistroId
     ) {
+
         CallCenterRegistro registro =
                 findRegistro(callCenterRegistroId);
 
@@ -122,6 +126,7 @@ public class CallCenterWorkflowService {
             Long callCenterRegistroId,
             CallCenterGestionLlamadaRequest request
     ) {
+
         CallCenterRegistro registro =
                 findRegistro(callCenterRegistroId);
 
@@ -171,6 +176,7 @@ public class CallCenterWorkflowService {
                 );
 
         validateLlamadaRequest(
+                request,
                 resultadoCodigo,
                 llamadaConectada,
                 motivoNoContacto,
@@ -203,6 +209,7 @@ public class CallCenterWorkflowService {
                 new CallCenterGestionLlamada();
 
         entity.setCallCenterRegistro(registro);
+
         entity.setFuncionarioCallcenter(user);
 
         entity.setFechaLlamada(
@@ -220,28 +227,37 @@ public class CallCenterWorkflowService {
         entity.setIntentoNumero(
                 (int) intentosPrevios + 1
         );
+
         entity.setLlamadaConectada(
                 llamadaConectada
         );
+
         entity.setResultadoLlamada(
                 resultado.getCodigo()
         );
+
         entity.setMotivoNoContacto(
                 motivoNoContacto
         );
+
         entity.setMotivoNoDisposicion(
                 motivoNoDisposicion
         );
+
         entity.setFechaReprogramacionLlamada(
                 request.fechaReprogramacionLlamada()
         );
+
         entity.setHoraReprogramacionLlamada(
                 request.horaReprogramacionLlamada()
         );
+
         entity.setObservacion(
                 trimToNull(request.observacion())
         );
+
         entity.setCreadoPor(user);
+
         entity.setActualizadoPor(user);
 
         CallCenterGestionLlamada saved =
@@ -250,6 +266,7 @@ public class CallCenterWorkflowService {
         applyLlamadaToRegistro(
                 registro,
                 saved,
+                request,
                 targetState
         );
 
@@ -288,6 +305,7 @@ public class CallCenterWorkflowService {
     findVisitasByCaso(
             Long callCenterRegistroId
     ) {
+
         CallCenterRegistro registro =
                 findRegistro(callCenterRegistroId);
 
@@ -310,6 +328,7 @@ public class CallCenterWorkflowService {
             Long callCenterRegistroId,
             CallCenterVisitaAsignacionRequest request
     ) {
+
         CallCenterRegistro registro =
                 findRegistro(callCenterRegistroId);
 
@@ -342,37 +361,50 @@ public class CallCenterWorkflowService {
                 new CallCenterVisita();
 
         visita.setCallCenterRegistro(registro);
+
         visita.setEncuestador(encuestador);
+
         visita.setUsuarioAsigna(user);
+
         visita.setFechaProgramada(
                 request.fechaProgramada()
         );
+
         visita.setHoraProgramada(
                 request.horaProgramada()
         );
+
         visita.setEstadoVisita(
                 programmed
                         ? "PROGRAMADA"
                         : "PENDIENTE"
         );
+
         visita.setObservacionEncuestador(
                 trimToNull(request.observacion())
         );
+
         visita.setCreadoPor(user);
+
         visita.setActualizadoPor(user);
 
         CallCenterVisita saved =
                 visitaRepository.save(visita);
 
         registro.setEncuestadorAsignado(encuestador);
+
         registro.setEncuestadorProgramado(encuestador);
+
         registro.setFechaEncuestaProgramada(
                 request.fechaProgramada()
         );
+
         registro.setEstadoVisita(
                 saved.getEstadoVisita()
         );
+
         registro.setEstadoCaso(targetState);
+
         registro.setActualizadoPor(user);
 
         callCenterRegistroRepository.save(registro);
@@ -404,6 +436,7 @@ public class CallCenterWorkflowService {
             CallCenterVisitaFilterRequest filter,
             Pageable pageable
     ) {
+
         User user = currentUser();
 
         Specification<CallCenterVisita> specification =
@@ -419,15 +452,17 @@ public class CallCenterWorkflowService {
                         "FUNCIONARIO_ENCUESTADOR"
                 )
         ) {
+
             Encuestador encuestador =
                     currentEncuestador(user);
 
-            specification = specification.and(
-                    CallCenterVisitaSpecification
-                            .byEncuestador(
-                                    encuestador.getId()
-                            )
-            );
+            specification =
+                    specification.and(
+                            CallCenterVisitaSpecification
+                                    .byEncuestador(
+                                            encuestador.getId()
+                                    )
+                    );
         }
 
         Page<CallCenterVisita> page =
@@ -450,6 +485,7 @@ public class CallCenterWorkflowService {
             Long visitaId,
             CallCenterVisitaResultadoRequest request
     ) {
+
         CallCenterVisita visita =
                 visitaRepository
                         .findById(visitaId)
@@ -507,32 +543,39 @@ public class CallCenterWorkflowService {
                 snapshotRegistro(registro);
 
         visita.setEstadoVisita(estadoVisita);
+
         visita.setFechaVisitaReal(
                 request.fechaVisitaReal() != null
                         ? request.fechaVisitaReal()
                         : LocalDate.now()
         );
+
         visita.setHoraVisitaReal(
                 request.horaVisitaReal() != null
                         ? request.horaVisitaReal()
                         : LocalTime.now().withNano(0)
         );
+
         visita.setEncuestaRealizada(
                 request.encuestaRealizada()
         );
+
         visita.setMotivoNoEncuesta(
                 trimToNull(
                         request.motivoNoEncuesta()
                 )
         );
+
         visita.setFechaReprogramacion(
                 request.fechaReprogramacion()
         );
+
         visita.setObservacionEncuestador(
                 trimToNull(
                         request.observacionEncuestador()
                 )
         );
+
         visita.setActualizadoPor(user);
 
         CallCenterVisita saved =
@@ -541,25 +584,33 @@ public class CallCenterWorkflowService {
         registro.setEstadoVisita(
                 saved.getEstadoVisita()
         );
+
         registro.setFechaVisitaReal(
                 saved.getFechaVisitaReal()
         );
+
         registro.setHoraVisitaReal(
                 saved.getHoraVisitaReal()
         );
+
         registro.setEncuestaRealizada(
                 saved.getEncuestaRealizada()
         );
+
         registro.setMotivoNoEncuesta(
                 saved.getMotivoNoEncuesta()
         );
+
         registro.setFechaReprogramacion(
                 saved.getFechaReprogramacion()
         );
+
         registro.setObservacionEncuestador(
                 saved.getObservacionEncuestador()
         );
+
         registro.setEstadoCaso(targetState);
+
         registro.setActualizadoPor(user);
 
         applyFinalStateMetadata(
@@ -595,45 +646,158 @@ public class CallCenterWorkflowService {
         return toVisitaResponse(saved);
     }
 
+    /**
+     * Aplica en el caso maestro la información correspondiente
+     * al último intento de llamada.
+     *
+     * <p>Cuando el intento no se conecta, se actualiza el motivo
+     * de no contacto sin eliminar los datos previamente confirmados.</p>
+     *
+     * <p>Cuando el intento se conecta, se actualizan solamente los
+     * valores enviados dentro de la solicitud.</p>
+     */
     private void applyLlamadaToRegistro(
             CallCenterRegistro registro,
             CallCenterGestionLlamada gestion,
+            CallCenterGestionLlamadaRequest request,
             String targetState
     ) {
+
         registro.setFechaLlamada(
                 gestion.getFechaLlamada()
         );
+
         registro.setHoraLlamada(
                 gestion.getHoraLlamada()
         );
+
         registro.setLlamadaConectada(
                 gestion.getLlamadaConectada()
         );
-        registro.setMotivoNoContacto(
-                gestion.getMotivoNoContacto()
-        );
-        registro.setMotivoNoDisposicion(
-                gestion.getMotivoNoDisposicion()
-        );
+
+        if (
+                !Boolean.TRUE.equals(
+                        gestion.getLlamadaConectada()
+                )
+        ) {
+
+            /*
+             * Una llamada no conectada conserva los datos que
+             * pudieron confirmarse en intentos anteriores.
+             */
+            registro.setMotivoNoContacto(
+                    gestion.getMotivoNoContacto()
+            );
+
+        } else {
+
+            /*
+             * Una llamada conectada deja sin efecto el motivo
+             * de no contacto del intento anterior.
+             */
+            registro.setMotivoNoContacto(null);
+
+            registro.setMotivoNoDisposicion(
+                    gestion.getMotivoNoDisposicion()
+            );
+
+            applyConfirmedCallData(
+                    registro,
+                    request
+            );
+        }
+
         registro.setObservacion(
                 gestion.getObservacion()
         );
+
         registro.setEstadoCaso(targetState);
+
         registro.setActualizadoPor(
                 gestion.getActualizadoPor()
         );
+    }
+
+    /**
+     * Actualiza en el caso maestro la última información
+     * confirmada durante una llamada conectada.
+     *
+     * <p>Los valores nulos o vacíos no reemplazan información
+     * previamente almacenada.</p>
+     */
+    private void applyConfirmedCallData(
+            CallCenterRegistro registro,
+            CallCenterGestionLlamadaRequest request
+    ) {
+
+        if (
+                request.solicitoNuevaEncuesta()
+                        != null
+        ) {
+
+            registro.setSolicitoNuevaEncuesta(
+                    request.solicitoNuevaEncuesta()
+            );
+        }
+
+        String direccionConfirmada =
+                trimToNull(
+                        request.direccionTexto()
+                );
+
+        if (direccionConfirmada != null) {
+
+            registro.setDireccionTexto(
+                    limitLength(
+                            direccionConfirmada,
+                            500
+                    )
+            );
+        }
+
+        if (
+                request.fechaAplicacionInformada()
+                        != null
+        ) {
+
+            registro.setFechaAplicacionInformada(
+                    request.fechaAplicacionInformada()
+            );
+        }
+
+        if (
+                request.disposicionRecibirEncuesta()
+                        != null
+        ) {
+
+            registro.setDisposicionRecibirEncuesta(
+                    request.disposicionRecibirEncuesta()
+            );
+        }
+
+        if (
+                request.explicoInformanteCalificado()
+                        != null
+        ) {
+
+            registro.setExplicoInformanteCalificado(
+                    request.explicoInformanteCalificado()
+            );
+        }
     }
 
     private String resolveEstadoCasoFromResultado(
             CallCenterResultadoLlamada resultado,
             Boolean llamadaConectada
     ) {
+
         String suggested =
                 normalize(
                         resultado.getEstadoCasoSugerido()
                 );
 
         if (!isBlank(suggested)) {
+
             return CallCenterStatePolicy
                     .requireKnownTargetState(
                             suggested
@@ -646,25 +810,41 @@ public class CallCenterWorkflowService {
     }
 
     private void validateLlamadaRequest(
+            CallCenterGestionLlamadaRequest request,
             String resultadoCodigo,
             Boolean llamadaConectada,
             CallCenterMotivoNoContacto motivoNoContacto,
             CallCenterMotivoNoDisposicion motivoNoDisposicion
     ) {
+
         if (
                 !Boolean.TRUE.equals(llamadaConectada)
                         && motivoNoContacto == null
         ) {
+
             throw new BusinessException(
                     "Debe seleccionar el motivo de no contacto"
             );
         }
 
-        if (
+        boolean ciudadanoSinDisposicion =
+                Boolean.TRUE.equals(llamadaConectada)
+                        && Boolean.FALSE.equals(
+                        request.disposicionRecibirEncuesta()
+                );
+
+        boolean resultadoSinDisposicion =
                 "CONTACTADO_NO_ACEPTA_VISITA"
-                        .equals(resultadoCodigo)
+                        .equals(resultadoCodigo);
+
+        if (
+                (
+                        ciudadanoSinDisposicion
+                                || resultadoSinDisposicion
+                )
                         && motivoNoDisposicion == null
         ) {
+
             throw new BusinessException(
                     "Debe seleccionar el motivo de no disposición"
             );
@@ -674,16 +854,19 @@ public class CallCenterWorkflowService {
     private void validateEstadoVisita(
             String estado
     ) {
-        List<String> allowed = List.of(
-                "PENDIENTE",
-                "PROGRAMADA",
-                "REALIZADA",
-                "NO_ATENDIDA",
-                "REPROGRAMADA",
-                "CANCELADA"
-        );
+
+        List<String> allowed =
+                List.of(
+                        "PENDIENTE",
+                        "PROGRAMADA",
+                        "REALIZADA",
+                        "NO_ATENDIDA",
+                        "REPROGRAMADA",
+                        "CANCELADA"
+                );
 
         if (!allowed.contains(estado)) {
+
             throw new BusinessException(
                     "Estado de visita no permitido: "
                             + estado
@@ -695,6 +878,7 @@ public class CallCenterWorkflowService {
             CallCenterRegistro registro,
             User user
     ) {
+
         if (
                 currentUserHasAnyRole(
                         "ADMIN",
@@ -710,10 +894,12 @@ public class CallCenterWorkflowService {
                         "FUNCIONARIO_CALLCENTER"
                 )
         ) {
+
             validateAssignedToFuncionarioCallCenter(
                     registro,
                     user
             );
+
             return;
         }
 
@@ -722,6 +908,7 @@ public class CallCenterWorkflowService {
                         "FUNCIONARIO_ENCUESTADOR"
                 )
         ) {
+
             Encuestador encuestador =
                     currentEncuestador(user);
 
@@ -746,6 +933,7 @@ public class CallCenterWorkflowService {
                     );
 
             if (!assigned) {
+
                 throw new BusinessException(
                         "El caso no está asignado al "
                                 + "encuestador autenticado"
@@ -764,11 +952,13 @@ public class CallCenterWorkflowService {
             CallCenterRegistro registro,
             User user
     ) {
+
         if (
                 CallCenterStatePolicy.isFinalState(
                         registro.getEstadoCaso()
                 )
         ) {
+
             throw new BusinessException(
                     "No se puede gestionar un caso cerrado o cancelado"
             );
@@ -789,10 +979,12 @@ public class CallCenterWorkflowService {
                         "FUNCIONARIO_CALLCENTER"
                 )
         ) {
+
             validateAssignedToFuncionarioCallCenter(
                     registro,
                     user
             );
+
             return;
         }
 
@@ -806,6 +998,7 @@ public class CallCenterWorkflowService {
             CallCenterRegistro registro,
             User user
     ) {
+
         Long assignedId =
                 registro.getFuncionarioCallcenterAsignado()
                         != null
@@ -814,7 +1007,13 @@ public class CallCenterWorkflowService {
                         .getId()
                         : null;
 
-        if (!Objects.equals(assignedId, user.getId())) {
+        if (
+                !Objects.equals(
+                        assignedId,
+                        user.getId()
+                )
+        ) {
+
             throw new BusinessException(
                     "El caso no está asignado al funcionario "
                             + "Call Center autenticado"
@@ -826,6 +1025,7 @@ public class CallCenterWorkflowService {
             CallCenterVisita visita,
             User user
     ) {
+
         if (
                 currentUserHasAnyRole(
                         "ADMIN",
@@ -840,8 +1040,11 @@ public class CallCenterWorkflowService {
                         "FUNCIONARIO_ENCUESTADOR"
                 )
         ) {
+
             String documentoUsuario =
-                    normalize(user.getDocumento());
+                    normalize(
+                            user.getDocumento()
+                    );
 
             String documentoEncuestador =
                     normalize(
@@ -855,6 +1058,7 @@ public class CallCenterWorkflowService {
                             documentoEncuestador
                     )
             ) {
+
                 throw new BusinessException(
                         "La visita no está asignada al "
                                 + "encuestador autenticado"
@@ -871,12 +1075,14 @@ public class CallCenterWorkflowService {
     }
 
     private User currentUser() {
+
         if (
                 SecurityContextHolder
                         .getContext()
                         .getAuthentication()
                         == null
         ) {
+
             throw new BusinessException(
                     "No hay usuario autenticado"
             );
@@ -892,6 +1098,7 @@ public class CallCenterWorkflowService {
                 isBlank(username)
                         || "anonymousUser".equals(username)
         ) {
+
             throw new BusinessException(
                     "No hay usuario autenticado"
             );
@@ -909,10 +1116,14 @@ public class CallCenterWorkflowService {
     private Encuestador currentEncuestador(
             User user
     ) {
+
         String documento =
-                normalize(user.getDocumento());
+                normalize(
+                        user.getDocumento()
+                );
 
         if (isBlank(documento)) {
+
             throw new BusinessException(
                     "El usuario autenticado no tiene "
                             + "documento registrado"
@@ -932,7 +1143,12 @@ public class CallCenterWorkflowService {
                                 )
                         );
 
-        if (!Boolean.TRUE.equals(encuestador.getActivo())) {
+        if (
+                !Boolean.TRUE.equals(
+                        encuestador.getActivo()
+                )
+        ) {
+
             throw new BusinessException(
                     "El encuestador asociado al usuario "
                             + "autenticado está inactivo"
@@ -945,7 +1161,9 @@ public class CallCenterWorkflowService {
     private boolean currentUserHasAnyRole(
             String... roles
     ) {
+
         for (String role : roles) {
+
             if (currentUserHasRole(role)) {
                 return true;
             }
@@ -957,6 +1175,7 @@ public class CallCenterWorkflowService {
     private boolean currentUserHasRole(
             String roleCode
     ) {
+
         if (
                 SecurityContextHolder
                         .getContext()
@@ -1002,7 +1221,8 @@ public class CallCenterWorkflowService {
         return user.getRole() != null
                 && Objects.equals(
                 normalize(
-                        user.getRole().getCodigo()
+                        user.getRole()
+                                .getCodigo()
                 ),
                 expectedRole
         );
@@ -1011,6 +1231,7 @@ public class CallCenterWorkflowService {
     private CallCenterRegistro findRegistro(
             Long id
     ) {
+
         return callCenterRegistroRepository
                 .findById(id)
                 .orElseThrow(
@@ -1024,6 +1245,7 @@ public class CallCenterWorkflowService {
     findActiveMotivoNoContacto(
             Long id
     ) {
+
         if (id == null) {
             return null;
         }
@@ -1037,7 +1259,12 @@ public class CallCenterWorkflowService {
                                 )
                         );
 
-        if (!Boolean.TRUE.equals(motivo.getActivo())) {
+        if (
+                !Boolean.TRUE.equals(
+                        motivo.getActivo()
+                )
+        ) {
+
             throw new BusinessException(
                     "El motivo de no contacto seleccionado está inactivo"
             );
@@ -1050,6 +1277,7 @@ public class CallCenterWorkflowService {
     findActiveMotivoNoDisposicion(
             Long id
     ) {
+
         if (id == null) {
             return null;
         }
@@ -1063,7 +1291,12 @@ public class CallCenterWorkflowService {
                                 )
                         );
 
-        if (!Boolean.TRUE.equals(motivo.getActivo())) {
+        if (
+                !Boolean.TRUE.equals(
+                        motivo.getActivo()
+                )
+        ) {
+
             throw new BusinessException(
                     "El motivo de no disposición seleccionado está inactivo"
             );
@@ -1075,6 +1308,7 @@ public class CallCenterWorkflowService {
     private Encuestador findActiveEncuestador(
             Long id
     ) {
+
         Encuestador encuestador =
                 encuestadorRepository
                         .findById(id)
@@ -1084,7 +1318,12 @@ public class CallCenterWorkflowService {
                                 )
                         );
 
-        if (!Boolean.TRUE.equals(encuestador.getActivo())) {
+        if (
+                !Boolean.TRUE.equals(
+                        encuestador.getActivo()
+                )
+        ) {
+
             throw new BusinessException(
                     "El encuestador seleccionado está inactivo"
             );
@@ -1099,6 +1338,7 @@ public class CallCenterWorkflowService {
             User user,
             String reason
     ) {
+
         if (
                 !CallCenterStatePolicy
                         .isFinalState(targetState)
@@ -1109,13 +1349,18 @@ public class CallCenterWorkflowService {
         registro.setFechaCierre(
                 LocalDateTime.now()
         );
+
         registro.setUsuarioCierre(user);
 
-        String finalReason = trimToNull(reason);
+        String finalReason =
+                trimToNull(reason);
 
         registro.setMotivoCierre(
                 finalReason != null
-                        ? limitLength(finalReason, 500)
+                        ? limitLength(
+                        finalReason,
+                        500
+                )
                         : "Finalización del caso Call Center"
         );
     }
@@ -1123,14 +1368,19 @@ public class CallCenterWorkflowService {
     private String buildCallFinalReason(
             CallCenterResultadoLlamada resultado
     ) {
+
         String nombre =
                 resultado != null
-                        ? trimToNull(resultado.getNombre())
+                        ? trimToNull(
+                        resultado.getNombre()
+                )
                         : null;
 
         String codigo =
                 resultado != null
-                        ? trimToNull(resultado.getCodigo())
+                        ? trimToNull(
+                        resultado.getCodigo()
+                )
                         : null;
 
         if (nombre != null) {
@@ -1148,10 +1398,12 @@ public class CallCenterWorkflowService {
             String targetState,
             CallCenterVisita visita
     ) {
+
         if (
                 CallCenterStatePolicy
                         .isClosedState(targetState)
         ) {
+
             return MOTIVO_CIERRE_ENCUESTA_REALIZADA;
         }
 
@@ -1170,41 +1422,94 @@ public class CallCenterWorkflowService {
     private Map<String, Object> snapshotRegistro(
             CallCenterRegistro entity
     ) {
+
         Map<String, Object> data =
                 new LinkedHashMap<>();
 
-        data.put("id", entity.getId());
-        data.put("estadoCaso", entity.getEstadoCaso());
-        data.put("estadoVisita", entity.getEstadoVisita());
-        data.put("fechaLlamada", entity.getFechaLlamada());
-        data.put("horaLlamada", entity.getHoraLlamada());
-        data.put("llamadaConectada", entity.getLlamadaConectada());
+        data.put(
+                "id",
+                entity.getId()
+        );
+
+        data.put(
+                "estadoCaso",
+                entity.getEstadoCaso()
+        );
+
+        data.put(
+                "estadoVisita",
+                entity.getEstadoVisita()
+        );
+
+        data.put(
+                "fechaLlamada",
+                entity.getFechaLlamada()
+        );
+
+        data.put(
+                "horaLlamada",
+                entity.getHoraLlamada()
+        );
+
+        data.put(
+                "llamadaConectada",
+                entity.getLlamadaConectada()
+        );
+
+        data.put(
+                "solicitoNuevaEncuesta",
+                entity.getSolicitoNuevaEncuesta()
+        );
+
+        data.put(
+                "direccionTexto",
+                entity.getDireccionTexto()
+        );
+
+        data.put(
+                "fechaAplicacionInformada",
+                entity.getFechaAplicacionInformada()
+        );
+
+        data.put(
+                "disposicionRecibirEncuesta",
+                entity.getDisposicionRecibirEncuesta()
+        );
+
+        data.put(
+                "explicoInformanteCalificado",
+                entity.getExplicoInformanteCalificado()
+        );
 
         data.put(
                 "motivoNoContactoId",
                 entity.getMotivoNoContacto() != null
-                        ? entity.getMotivoNoContacto().getId()
+                        ? entity.getMotivoNoContacto()
+                        .getId()
                         : null
         );
 
         data.put(
                 "motivoNoDisposicionId",
                 entity.getMotivoNoDisposicion() != null
-                        ? entity.getMotivoNoDisposicion().getId()
+                        ? entity.getMotivoNoDisposicion()
+                        .getId()
                         : null
         );
 
         data.put(
                 "encuestadorAsignadoId",
                 entity.getEncuestadorAsignado() != null
-                        ? entity.getEncuestadorAsignado().getId()
+                        ? entity.getEncuestadorAsignado()
+                        .getId()
                         : null
         );
 
         data.put(
                 "encuestadorProgramadoId",
                 entity.getEncuestadorProgramado() != null
-                        ? entity.getEncuestadorProgramado().getId()
+                        ? entity.getEncuestadorProgramado()
+                        .getId()
                         : null
         );
 
@@ -1212,17 +1517,27 @@ public class CallCenterWorkflowService {
                 "fechaEncuestaProgramada",
                 entity.getFechaEncuestaProgramada()
         );
+
         data.put(
                 "encuestaRealizada",
                 entity.getEncuestaRealizada()
         );
-        data.put("fechaCierre", entity.getFechaCierre());
-        data.put("motivoCierre", entity.getMotivoCierre());
+
+        data.put(
+                "fechaCierre",
+                entity.getFechaCierre()
+        );
+
+        data.put(
+                "motivoCierre",
+                entity.getMotivoCierre()
+        );
 
         data.put(
                 "usuarioCierreId",
                 entity.getUsuarioCierre() != null
-                        ? entity.getUsuarioCierre().getId()
+                        ? entity.getUsuarioCierre()
+                        .getId()
                         : null
         );
 
@@ -1232,32 +1547,51 @@ public class CallCenterWorkflowService {
     private Map<String, Object> snapshotGestion(
             CallCenterGestionLlamada entity
     ) {
+
         Map<String, Object> data =
                 new LinkedHashMap<>();
 
-        data.put("id", entity.getId());
+        data.put(
+                "id",
+                entity.getId()
+        );
 
         data.put(
                 "callCenterRegistroId",
                 entity.getCallCenterRegistro() != null
-                        ? entity.getCallCenterRegistro().getId()
+                        ? entity.getCallCenterRegistro()
+                        .getId()
                         : null
         );
 
         data.put(
                 "funcionarioCallcenterId",
                 entity.getFuncionarioCallcenter() != null
-                        ? entity.getFuncionarioCallcenter().getId()
+                        ? entity.getFuncionarioCallcenter()
+                        .getId()
                         : null
         );
 
-        data.put("fechaLlamada", entity.getFechaLlamada());
-        data.put("horaLlamada", entity.getHoraLlamada());
-        data.put("intentoNumero", entity.getIntentoNumero());
+        data.put(
+                "fechaLlamada",
+                entity.getFechaLlamada()
+        );
+
+        data.put(
+                "horaLlamada",
+                entity.getHoraLlamada()
+        );
+
+        data.put(
+                "intentoNumero",
+                entity.getIntentoNumero()
+        );
+
         data.put(
                 "llamadaConectada",
                 entity.getLlamadaConectada()
         );
+
         data.put(
                 "resultadoLlamada",
                 entity.getResultadoLlamada()
@@ -1266,14 +1600,16 @@ public class CallCenterWorkflowService {
         data.put(
                 "motivoNoContactoId",
                 entity.getMotivoNoContacto() != null
-                        ? entity.getMotivoNoContacto().getId()
+                        ? entity.getMotivoNoContacto()
+                        .getId()
                         : null
         );
 
         data.put(
                 "motivoNoDisposicionId",
                 entity.getMotivoNoDisposicion() != null
-                        ? entity.getMotivoNoDisposicion().getId()
+                        ? entity.getMotivoNoDisposicion()
+                        .getId()
                         : null
         );
 
@@ -1281,12 +1617,21 @@ public class CallCenterWorkflowService {
                 "fechaReprogramacionLlamada",
                 entity.getFechaReprogramacionLlamada()
         );
+
         data.put(
                 "horaReprogramacionLlamada",
                 entity.getHoraReprogramacionLlamada()
         );
-        data.put("observacion", entity.getObservacion());
-        data.put("activo", entity.getActivo());
+
+        data.put(
+                "observacion",
+                entity.getObservacion()
+        );
+
+        data.put(
+                "activo",
+                entity.getActivo()
+        );
 
         return data;
     }
@@ -1294,29 +1639,36 @@ public class CallCenterWorkflowService {
     private Map<String, Object> snapshotVisita(
             CallCenterVisita entity
     ) {
+
         Map<String, Object> data =
                 new LinkedHashMap<>();
 
-        data.put("id", entity.getId());
+        data.put(
+                "id",
+                entity.getId()
+        );
 
         data.put(
                 "callCenterRegistroId",
                 entity.getCallCenterRegistro() != null
-                        ? entity.getCallCenterRegistro().getId()
+                        ? entity.getCallCenterRegistro()
+                        .getId()
                         : null
         );
 
         data.put(
                 "encuestadorId",
                 entity.getEncuestador() != null
-                        ? entity.getEncuestador().getId()
+                        ? entity.getEncuestador()
+                        .getId()
                         : null
         );
 
         data.put(
                 "usuarioAsignaId",
                 entity.getUsuarioAsigna() != null
-                        ? entity.getUsuarioAsigna().getId()
+                        ? entity.getUsuarioAsigna()
+                        .getId()
                         : null
         );
 
@@ -1324,43 +1676,56 @@ public class CallCenterWorkflowService {
                 "fechaAsignacion",
                 entity.getFechaAsignacion()
         );
+
         data.put(
                 "fechaProgramada",
                 entity.getFechaProgramada()
         );
+
         data.put(
                 "horaProgramada",
                 entity.getHoraProgramada()
         );
+
         data.put(
                 "estadoVisita",
                 entity.getEstadoVisita()
         );
+
         data.put(
                 "fechaVisitaReal",
                 entity.getFechaVisitaReal()
         );
+
         data.put(
                 "horaVisitaReal",
                 entity.getHoraVisitaReal()
         );
+
         data.put(
                 "encuestaRealizada",
                 entity.getEncuestaRealizada()
         );
+
         data.put(
                 "motivoNoEncuesta",
                 entity.getMotivoNoEncuesta()
         );
+
         data.put(
                 "fechaReprogramacion",
                 entity.getFechaReprogramacion()
         );
+
         data.put(
                 "observacionEncuestador",
                 entity.getObservacionEncuestador()
         );
-        data.put("activo", entity.getActivo());
+
+        data.put(
+                "activo",
+                entity.getActivo()
+        );
 
         return data;
     }
@@ -1369,6 +1734,7 @@ public class CallCenterWorkflowService {
     toResultadoResponse(
             CallCenterResultadoLlamada entity
     ) {
+
         return new CallCenterResultadoLlamadaResponse(
                 entity.getId(),
                 entity.getCodigo(),
@@ -1383,6 +1749,7 @@ public class CallCenterWorkflowService {
     toGestionResponse(
             CallCenterGestionLlamada entity
     ) {
+
         User funcionario =
                 entity.getFuncionarioCallcenter();
 
@@ -1390,7 +1757,8 @@ public class CallCenterWorkflowService {
                 entity.getId(),
 
                 entity.getCallCenterRegistro() != null
-                        ? entity.getCallCenterRegistro().getId()
+                        ? entity.getCallCenterRegistro()
+                        .getId()
                         : null,
 
                 funcionario != null
@@ -1402,32 +1770,45 @@ public class CallCenterWorkflowService {
                         : null,
 
                 buildUserFullName(funcionario),
+
                 entity.getFechaLlamada(),
+
                 entity.getHoraLlamada(),
+
                 entity.getIntentoNumero(),
+
                 entity.getLlamadaConectada(),
+
                 entity.getResultadoLlamada(),
 
                 entity.getMotivoNoContacto() != null
-                        ? entity.getMotivoNoContacto().getId()
+                        ? entity.getMotivoNoContacto()
+                        .getId()
                         : null,
 
                 entity.getMotivoNoContacto() != null
-                        ? entity.getMotivoNoContacto().getNombre()
+                        ? entity.getMotivoNoContacto()
+                        .getNombre()
                         : null,
 
                 entity.getMotivoNoDisposicion() != null
-                        ? entity.getMotivoNoDisposicion().getId()
+                        ? entity.getMotivoNoDisposicion()
+                        .getId()
                         : null,
 
                 entity.getMotivoNoDisposicion() != null
-                        ? entity.getMotivoNoDisposicion().getNombre()
+                        ? entity.getMotivoNoDisposicion()
+                        .getNombre()
                         : null,
 
                 entity.getFechaReprogramacionLlamada(),
+
                 entity.getHoraReprogramacionLlamada(),
+
                 entity.getObservacion(),
+
                 entity.getActivo(),
+
                 entity.getCreadoEn()
         );
     }
@@ -1435,6 +1816,7 @@ public class CallCenterWorkflowService {
     private CallCenterVisitaResponse toVisitaResponse(
             CallCenterVisita entity
     ) {
+
         User usuarioAsigna =
                 entity.getUsuarioAsigna();
 
@@ -1449,11 +1831,13 @@ public class CallCenterWorkflowService {
                         : null,
 
                 entity.getEncuestador() != null
-                        ? entity.getEncuestador().getId()
+                        ? entity.getEncuestador()
+                        .getId()
                         : null,
 
                 entity.getEncuestador() != null
-                        ? entity.getEncuestador().getNombre()
+                        ? entity.getEncuestador()
+                        .getNombre()
                         : null,
 
                 usuarioAsigna != null
@@ -1465,16 +1849,27 @@ public class CallCenterWorkflowService {
                         : null,
 
                 entity.getFechaAsignacion(),
+
                 entity.getFechaProgramada(),
+
                 entity.getHoraProgramada(),
+
                 entity.getEstadoVisita(),
+
                 entity.getFechaVisitaReal(),
+
                 entity.getHoraVisitaReal(),
+
                 entity.getEncuestaRealizada(),
+
                 entity.getMotivoNoEncuesta(),
+
                 entity.getFechaReprogramacion(),
+
                 entity.getObservacionEncuestador(),
+
                 entity.getActivo(),
+
                 entity.getCreadoEn(),
 
                 registro != null
@@ -1495,12 +1890,14 @@ public class CallCenterWorkflowService {
 
                 registro != null
                         && registro.getBarrio() != null
-                        ? registro.getBarrio().getNombre()
+                        ? registro.getBarrio()
+                        .getNombre()
                         : null,
 
                 registro != null
                         && registro.getBarrio() != null
-                        && registro.getBarrio().getComuna() != null
+                        && registro.getBarrio()
+                        .getComuna() != null
                         ? registro.getBarrio()
                         .getComuna()
                         .getNombre()
@@ -1519,6 +1916,7 @@ public class CallCenterWorkflowService {
     private String buildUserFullName(
             User user
     ) {
+
         if (user == null) {
             return null;
         }
@@ -1534,7 +1932,8 @@ public class CallCenterWorkflowService {
                         : "";
 
         String fullName =
-                (nombres + " " + apellidos).trim();
+                (nombres + " " + apellidos)
+                        .trim();
 
         return !fullName.isBlank()
                 ? fullName
@@ -1544,9 +1943,11 @@ public class CallCenterWorkflowService {
     private String normalize(
             String value
     ) {
+
         return value == null
                 ? null
-                : value.trim()
+                : value
+                .trim()
                 .toUpperCase(Locale.ROOT);
     }
 
@@ -1554,11 +1955,15 @@ public class CallCenterWorkflowService {
             String value,
             String message
     ) {
+
         String normalized =
                 normalize(value);
 
         if (isBlank(normalized)) {
-            throw new BusinessException(message);
+
+            throw new BusinessException(
+                    message
+            );
         }
 
         return normalized;
@@ -1567,6 +1972,7 @@ public class CallCenterWorkflowService {
     private String trimToNull(
             String value
     ) {
+
         if (isBlank(value)) {
             return null;
         }
@@ -1578,6 +1984,7 @@ public class CallCenterWorkflowService {
             String value,
             int maxLength
     ) {
+
         if (value == null) {
             return null;
         }
@@ -1586,13 +1993,19 @@ public class CallCenterWorkflowService {
             return value;
         }
 
-        return value.substring(0, maxLength);
+        return value.substring(
+                0,
+                maxLength
+        );
     }
 
     private boolean isBlank(
             String value
     ) {
+
         return value == null
-                || value.trim().isEmpty();
+                || value
+                .trim()
+                .isEmpty();
     }
 }

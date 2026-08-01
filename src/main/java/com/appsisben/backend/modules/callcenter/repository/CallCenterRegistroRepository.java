@@ -12,6 +12,41 @@ public interface CallCenterRegistroRepository
         extends JpaRepository<CallCenterRegistro, Long>,
         JpaSpecificationExecutor<CallCenterRegistro> {
 
+    /**
+     * Verifica si el ciudadano ya tiene una nueva encuesta activa
+     * que todavía no ha sido realizada.
+     *
+     * <p>La coincidencia se evalúa por el registro de Ventanilla,
+     * cuando fue suministrado, o por la cédula del ciudadano.</p>
+     *
+     * @param ventanillaRegistroId registro de Ventanilla opcional.
+     * @param cedulaSolicitante cédula normalizada del ciudadano.
+     * @return true cuando ya existe una encuesta activa pendiente.
+     */
+    @Query("""
+            select case when count(c) > 0 then true else false end
+            from CallCenterRegistro c
+            where c.activo = true
+              and c.solicitoNuevaEncuesta = true
+              and coalesce(c.encuestaRealizada, false) = false
+              and (
+                    (
+                        :ventanillaRegistroId is not null
+                        and c.ventanillaRegistro.id = :ventanillaRegistroId
+                    )
+                    or
+                    upper(trim(c.cedulaSolicitante))
+                        = upper(:cedulaSolicitante)
+                  )
+            """)
+    boolean existsNuevaEncuestaActivaNoRealizada(
+            @Param("ventanillaRegistroId")
+            Long ventanillaRegistroId,
+
+            @Param("cedulaSolicitante")
+            String cedulaSolicitante
+    );
+
     @Query("""
             select c
             from CallCenterRegistro c
@@ -38,18 +73,24 @@ public interface CallCenterRegistroRepository
                   )
             order by c.id desc
             """)
-    List<CallCenterRegistro> findAsignacionNuevaEncuestaPendiente(
-            @Param("excludeId") Long excludeId,
-            @Param("ventanillaRegistroId") Long ventanillaRegistroId,
-            @Param("cedulaSolicitante") String cedulaSolicitante
+    List<CallCenterRegistro>
+    findAsignacionNuevaEncuestaPendiente(
+            @Param("excludeId")
+            Long excludeId,
+
+            @Param("ventanillaRegistroId")
+            Long ventanillaRegistroId,
+
+            @Param("cedulaSolicitante")
+            String cedulaSolicitante
     );
 
     /**
      * Calcula el resumen del módulo directamente en base de datos.
      *
-     * Cuando funcionarioId es null, incluye todos los casos.
+     * <p>Cuando funcionarioId es null, incluye todos los casos.
      * Cuando contiene un ID, incluye únicamente los casos asignados
-     * a ese funcionario Call Center.
+     * a ese funcionario Call Center.</p>
      */
     @Query("""
             select
@@ -97,6 +138,7 @@ public interface CallCenterRegistroRepository
                   )
             """)
     CallCenterSummaryProjection summarize(
-            @Param("funcionarioId") Long funcionarioId
+            @Param("funcionarioId")
+            Long funcionarioId
     );
 }

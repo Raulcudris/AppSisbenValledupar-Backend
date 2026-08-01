@@ -1,6 +1,18 @@
 package com.appsisben.backend.modules.callcenter.api;
+
+import com.appsisben.backend.modules.callcenter.application.CallCenterJornadaService;
 import com.appsisben.backend.modules.callcenter.application.CallCenterService;
-import com.appsisben.backend.modules.callcenter.dto.*;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterAsignarEncuestadorRequest;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterAsignarFuncionarioRequest;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterCatalogResponse;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterFilterRequest;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterRequest;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterResponse;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterSummaryResponse;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterUltimaHoraRequest;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterUltimaHoraResponse;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterUserOptionResponse;
+import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaRequest;
 import com.appsisben.backend.security.AppRolePreAuthorize;
 import com.appsisben.backend.shared.api.ApiResponse;
 import com.appsisben.backend.shared.api.PageResponse;
@@ -30,72 +42,124 @@ import java.util.List;
 public class CallCenterController {
 
     private final CallCenterService service;
+    private final CallCenterJornadaService jornadaService;
 
     @PreAuthorize(AppRolePreAuthorize.CALLCENTER_READ)
     @GetMapping
-    public ApiResponse<PageResponse<CallCenterResponse>> findAll(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+    public ApiResponse<PageResponse<CallCenterResponse>>
+    findAll(
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "20")
+            int size
     ) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("fechaLlamada").descending());
-        return ApiResponse.ok(service.findAll(pageable));
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by(
+                                "fechaLlamada"
+                        ).descending()
+                );
+
+        return ApiResponse.ok(
+                service.findAll(pageable)
+        );
     }
 
     @PreAuthorize(AppRolePreAuthorize.CALLCENTER_READ)
     @GetMapping("/search")
-    public ApiResponse<PageResponse<CallCenterResponse>> search(
-            @ModelAttribute CallCenterFilterRequest filter,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+    public ApiResponse<PageResponse<CallCenterResponse>>
+    search(
+            @ModelAttribute
+            CallCenterFilterRequest filter,
+
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "20")
+            int size
     ) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("fechaLlamada").descending());
-        return ApiResponse.ok(service.search(filter, pageable));
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by(
+                                "fechaLlamada"
+                        ).descending()
+                );
+
+        return ApiResponse.ok(
+                service.search(
+                        filter,
+                        pageable
+                )
+        );
     }
 
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGN_FUNCIONARIO)
+    @PreAuthorize(
+            AppRolePreAuthorize
+                    .CALLCENTER_ASSIGN_FUNCIONARIO
+    )
     @GetMapping("/pendientes-asignar-funcionario")
-    public ApiResponse<PageResponse<CallCenterResponse>> pendientesAsignarFuncionario(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+    public ApiResponse<PageResponse<CallCenterResponse>>
+    pendientesAsignarFuncionario(
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "20")
+            int size
     ) {
-        Pageable pageable = PageRequest.of(
-                page,
-                size,
-                Sort.by(
-                        Sort.Order.asc("fechaEncuestaProgramada"),
-                        Sort.Order.asc("fechaLlamada")
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by(
+                                Sort.Order.asc(
+                                        "fechaEncuestaProgramada"
+                                ),
+                                Sort.Order.asc(
+                                        "fechaLlamada"
+                                )
+                        )
+                );
+
+        return ApiResponse.ok(
+                service.pendientesAsignarFuncionario(
+                        pageable
                 )
         );
-
-        return ApiResponse.ok(service.pendientesAsignarFuncionario(pageable));
     }
 
-    /**
-     * Consulta los casos asignados al funcionario Call Center autenticado.
-     *
-     * <p>Permite aplicar filtros reales desde base de datos para la pantalla
-     * de Mis registros Call Center.</p>
-     *
-     * @param filter filtros de búsqueda.
-     * @param page número de página.
-     * @param size tamaño de página.
-     * @return página de registros asignados.
-     */
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_WRITE)
+    @PreAuthorize(
+            AppRolePreAuthorize.CALLCENTER_WRITE
+    )
     @GetMapping("/mis-registros-callcenter")
-    public ApiResponse<PageResponse<CallCenterResponse>> misRegistrosCallcenter(
-            @ModelAttribute CallCenterFilterRequest filter,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+    public ApiResponse<PageResponse<CallCenterResponse>>
+    misRegistrosCallcenter(
+            @ModelAttribute
+            CallCenterFilterRequest filter,
+
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "20")
+            int size
     ) {
-        Pageable pageable = PageRequest.of(
-                page,
-                size,
-                Sort.by(
-                        Sort.Order.asc("fechaEncuestaProgramada"),
-                        Sort.Order.asc("fechaLlamada")
-                )
-        );
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by(
+                                Sort.Order.asc(
+                                        "fechaEncuestaProgramada"
+                                ),
+                                Sort.Order.asc(
+                                        "fechaLlamada"
+                                )
+                        )
+                );
 
         return ApiResponse.ok(
                 service.misRegistrosCallcenter(
@@ -104,128 +168,272 @@ public class CallCenterController {
                 )
         );
     }
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGN_FUNCIONARIO)
+
+    @PreAuthorize(
+            AppRolePreAuthorize
+                    .CALLCENTER_ASSIGN_FUNCIONARIO
+    )
     @GetMapping("/catalogs/funcionarios-callcenter")
-    public ApiResponse<List<CallCenterUserOptionResponse>> funcionariosCallcenter() {
-        return ApiResponse.ok(service.findFuncionariosCallcenter());
+    public ApiResponse<List<CallCenterUserOptionResponse>>
+    funcionariosCallcenter() {
+        return ApiResponse.ok(
+                service.findFuncionariosCallcenter()
+        );
     }
 
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGN_FUNCIONARIO)
+    @PreAuthorize(
+            AppRolePreAuthorize
+                    .CALLCENTER_ASSIGN_FUNCIONARIO
+    )
     @PatchMapping("/asignar-funcionario-callcenter")
-    public ApiResponse<List<CallCenterResponse>> asignarFuncionarioCallcenter(
-            @Valid @RequestBody CallCenterAsignarFuncionarioRequest request
+    public ApiResponse<List<CallCenterResponse>>
+    asignarFuncionarioCallcenter(
+            @Valid
+            @RequestBody
+            CallCenterAsignarFuncionarioRequest request
     ) {
         return ApiResponse.ok(
-                "Registros asignados al funcionario Call Center correctamente",
-                service.asignarFuncionarioCallcenter(request)
-        );
-    }
-
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGN_ENCUESTADOR)
-    @PatchMapping("/asignar-encuestador")
-    public ApiResponse<List<CallCenterResponse>> asignarEncuestador(
-            @Valid @RequestBody CallCenterAsignarEncuestadorRequest request
-    ) {
-        return ApiResponse.ok(
-                "Registros asignados al encuestador correctamente",
-                service.asignarEncuestador(request)
-        );
-    }
-
-
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_ASSIGNMENTS_READ)
-    @GetMapping("/mis-asignaciones")
-    public ApiResponse<PageResponse<CallCenterResponse>> misAsignaciones(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
-    ) {
-        Pageable pageable = PageRequest.of(
-                page,
-                size,
-                Sort.by(
-                        Sort.Order.asc("fechaAplicacionInformada"),
-                        Sort.Order.asc("fechaEncuestaProgramada"),
-                        Sort.Order.asc("fechaLlamada")
+                "Registros asignados al funcionario "
+                        + "Call Center correctamente",
+                service.asignarFuncionarioCallcenter(
+                        request
                 )
         );
+    }
 
+    @PreAuthorize(
+            AppRolePreAuthorize
+                    .CALLCENTER_ASSIGN_ENCUESTADOR
+    )
+    @PatchMapping("/asignar-encuestador")
+    public ApiResponse<List<CallCenterResponse>>
+    asignarEncuestador(
+            @Valid
+            @RequestBody
+            CallCenterAsignarEncuestadorRequest request
+    ) {
         return ApiResponse.ok(
-                service.misAsignaciones(pageable)
+                "Registros asignados al encuestador "
+                        + "correctamente",
+                service.asignarEncuestador(
+                        request
+                )
         );
     }
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_READ)
-    @GetMapping("/catalogs/motivos-no-contacto")
-    public ApiResponse<List<CallCenterCatalogResponse>> motivosNoContacto() {
-        return ApiResponse.ok(service.findMotivosNoContacto());
-    }
 
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_READ)
-    @GetMapping("/catalogs/motivos-no-disposicion")
-    public ApiResponse<List<CallCenterCatalogResponse>> motivosNoDisposicion() {
-        return ApiResponse.ok(service.findMotivosNoDisposicion());
-    }
+    @PreAuthorize(
+            AppRolePreAuthorize
+                    .CALLCENTER_ASSIGNMENTS_READ
+    )
+    @GetMapping("/mis-asignaciones")
+    public ApiResponse<PageResponse<CallCenterResponse>>
+    misAsignaciones(
+            @RequestParam(defaultValue = "0")
+            int page,
 
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_READ)
-    @GetMapping("/summary")
-    public ApiResponse<CallCenterSummaryResponse> summary() {
-        return ApiResponse.ok(service.summary());
-    }
-
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_READ)
-    @GetMapping("/{id}")
-    public ApiResponse<CallCenterResponse> findById(@PathVariable Long id) {
-        return ApiResponse.ok(service.findById(id));
-    }
-
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_WRITE)
-    @PostMapping
-    public ApiResponse<CallCenterResponse> create(@Valid @RequestBody CallCenterRequest request) {
-        return ApiResponse.ok("Registro Call Center creado correctamente", service.create(request));
-    }
-
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_WRITE)
-    @PutMapping("/{id}")
-    public ApiResponse<CallCenterResponse> update(
-            @PathVariable Long id,
-            @Valid @RequestBody CallCenterRequest request
+            @RequestParam(defaultValue = "20")
+            int size
     ) {
-        return ApiResponse.ok("Registro Call Center actualizado correctamente", service.update(id, request));
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by(
+                                Sort.Order.asc(
+                                        "fechaAplicacionInformada"
+                                ),
+                                Sort.Order.asc(
+                                        "fechaEncuestaProgramada"
+                                ),
+                                Sort.Order.asc(
+                                        "fechaLlamada"
+                                )
+                        )
+                );
+
+        return ApiResponse.ok(
+                service.misAsignaciones(
+                        pageable
+                )
+        );
     }
 
-    /*
-     * Actualiza únicamente la gestión del encuestador:
-     * estado de visita, fecha/hora real, encuesta realizada, motivo, reprogramación,
-     * observación del encuestador y verificación.
+    @PreAuthorize(
+            AppRolePreAuthorize.CALLCENTER_READ
+    )
+    @GetMapping("/catalogs/motivos-no-contacto")
+    public ApiResponse<List<CallCenterCatalogResponse>>
+    motivosNoContacto() {
+        return ApiResponse.ok(
+                service.findMotivosNoContacto()
+        );
+    }
+
+    @PreAuthorize(
+            AppRolePreAuthorize.CALLCENTER_READ
+    )
+    @GetMapping("/catalogs/motivos-no-disposicion")
+    public ApiResponse<List<CallCenterCatalogResponse>>
+    motivosNoDisposicion() {
+        return ApiResponse.ok(
+                service.findMotivosNoDisposicion()
+        );
+    }
+
+    @PreAuthorize(
+            AppRolePreAuthorize.CALLCENTER_READ
+    )
+    @GetMapping("/summary")
+    public ApiResponse<CallCenterSummaryResponse>
+    summary() {
+        return ApiResponse.ok(
+                service.summary()
+        );
+    }
+
+    /**
+     * Incorpora un ciudadano de última hora a una jornada,
+     * asignando funcionario Call Center y encuestador.
      */
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_LEGACY_VISIT_UPDATE)
+    @PreAuthorize(
+            AppRolePreAuthorize
+                    .CALLCENTER_ASSIGN_FUNCIONARIO
+    )
+    @PostMapping("/jornada/ultima-hora")
+    public ApiResponse<CallCenterUltimaHoraResponse>
+    crearUltimaHora(
+            @Valid
+            @RequestBody
+            CallCenterUltimaHoraRequest request
+    ) {
+        return ApiResponse.ok(
+                "Ciudadano de última hora agregado "
+                        + "y asignado correctamente",
+                jornadaService.crearUltimaHora(
+                        request
+                )
+        );
+    }
+
+    @PreAuthorize(
+            AppRolePreAuthorize.CALLCENTER_READ
+    )
+    @GetMapping("/{id}")
+    public ApiResponse<CallCenterResponse>
+    findById(
+            @PathVariable
+            Long id
+    ) {
+        return ApiResponse.ok(
+                service.findById(id)
+        );
+    }
+
+    @PreAuthorize(
+            AppRolePreAuthorize.CALLCENTER_WRITE
+    )
+    @PostMapping
+    public ApiResponse<CallCenterResponse>
+    create(
+            @Valid
+            @RequestBody
+            CallCenterRequest request
+    ) {
+        return ApiResponse.ok(
+                "Registro Call Center creado correctamente",
+                service.create(request)
+        );
+    }
+
+    @PreAuthorize(
+            AppRolePreAuthorize.CALLCENTER_WRITE
+    )
+    @PutMapping("/{id}")
+    public ApiResponse<CallCenterResponse>
+    update(
+            @PathVariable
+            Long id,
+
+            @Valid
+            @RequestBody
+            CallCenterRequest request
+    ) {
+        return ApiResponse.ok(
+                "Registro Call Center actualizado correctamente",
+                service.update(
+                        id,
+                        request
+                )
+        );
+    }
+
+    @PreAuthorize(
+            AppRolePreAuthorize
+                    .CALLCENTER_LEGACY_VISIT_UPDATE
+    )
     @PatchMapping("/{id}/visita")
-    public ApiResponse<CallCenterResponse> updateVisita(
-            @PathVariable Long id,
-            @Valid @RequestBody CallCenterVisitaRequest request
+    public ApiResponse<CallCenterResponse>
+    updateVisita(
+            @PathVariable
+            Long id,
+
+            @Valid
+            @RequestBody
+            CallCenterVisitaRequest request
     ) {
         return ApiResponse.ok(
                 "Resultado de visita actualizado correctamente",
-                service.updateVisita(id, request)
+                service.updateVisita(
+                        id,
+                        request
+                )
         );
     }
 
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_WRITE)
+    @PreAuthorize(
+            AppRolePreAuthorize.CALLCENTER_WRITE
+    )
     @PatchMapping("/{id}/activate")
-    public ApiResponse<CallCenterResponse> activate(@PathVariable Long id) {
-        return ApiResponse.ok("Registro Call Center activado correctamente", service.activate(id));
+    public ApiResponse<CallCenterResponse>
+    activate(
+            @PathVariable
+            Long id
+    ) {
+        return ApiResponse.ok(
+                "Registro Call Center activado correctamente",
+                service.activate(id)
+        );
     }
 
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_WRITE)
+    @PreAuthorize(
+            AppRolePreAuthorize.CALLCENTER_WRITE
+    )
     @PatchMapping("/{id}/deactivate")
-    public ApiResponse<CallCenterResponse> deactivate(@PathVariable Long id) {
-        return ApiResponse.ok("Registro Call Center inactivado correctamente", service.deactivate(id));
+    public ApiResponse<CallCenterResponse>
+    deactivate(
+            @PathVariable
+            Long id
+    ) {
+        return ApiResponse.ok(
+                "Registro Call Center inactivado correctamente",
+                service.deactivate(id)
+        );
     }
 
-    @PreAuthorize(AppRolePreAuthorize.CALLCENTER_WRITE)
+    @PreAuthorize(
+            AppRolePreAuthorize.CALLCENTER_WRITE
+    )
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
+    public ApiResponse<Void>
+    delete(
+            @PathVariable
+            Long id
+    ) {
         service.delete(id);
 
-        return ApiResponse.ok("Registro Call Center retirado correctamente", null);
+        return ApiResponse.ok(
+                "Registro Call Center retirado correctamente",
+                null
+        );
     }
 }
