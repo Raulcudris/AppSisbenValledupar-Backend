@@ -321,21 +321,123 @@ public class CallCenterService {
         );
     }
 
+    /**
+     * Crea un caso mediante el flujo general existente.
+     *
+     * <p>Se conserva el comportamiento actual:</p>
+     *
+     * <ul>
+     *     <li>
+     *         FUNCIONARIO_CALLCENTER queda asignado
+     *         automáticamente al caso.
+     *     </li>
+     *     <li>
+     *         Los demás roles autorizados conservan el flujo
+     *         administrativo correspondiente.
+     *     </li>
+     * </ul>
+     *
+     * @param request datos del caso.
+     * @return caso creado.
+     */
     @Transactional
     public CallCenterResponse create(
             CallCenterRequest request
     ) {
+        boolean assignCurrentUser =
+                currentUserHasRole(
+                        "FUNCIONARIO_CALLCENTER"
+                );
+
+        return createInternal(
+                request,
+                assignCurrentUser
+        );
+    }
+
+    /**
+     * Crea un caso desde el registro completo y lo asigna
+     * al usuario autenticado.
+     *
+     * <p>Esta operación permite como responsables:</p>
+     *
+     * <ul>
+     *     <li>ADMIN</li>
+     *     <li>FUNCIONARIO_CALLCENTER</li>
+     * </ul>
+     *
+     * <p>El responsable nunca se recibe desde el frontend.</p>
+     *
+     * @param request datos generales del caso.
+     * @return caso creado y asignado al usuario autenticado.
+     */
+    @Transactional
+    public CallCenterResponse createSelfRegistered(
+            CallCenterRequest request
+    ) {
+        boolean allowed =
+                currentUserHasRole(
+                        "ADMIN"
+                )
+                        || currentUserHasRole(
+                        "FUNCIONARIO_CALLCENTER"
+                );
+
+        if (!allowed) {
+            throw new BusinessException(
+                    "El registro completo solo puede ser realizado "
+                            + "por un administrador o un funcionario "
+                            + "Call Center"
+            );
+        }
+
+        return createInternal(
+                request,
+                true
+        );
+    }
+
+    /**
+     * Implementación común de creación.
+     *
+     * @param request datos del caso.
+     * @param assignCurrentUser indica si el usuario autenticado
+     *                          quedará asignado como responsable.
+     * @return caso creado.
+     */
+    private CallCenterResponse createInternal(
+            CallCenterRequest request,
+            boolean assignCurrentUser
+    ) {
         CallCenterRegistro entity =
                 new CallCenterRegistro();
 
-        User user = currentUser();
+        User user =
+                currentUser();
 
-        entity.setFuncionario(user);
-        entity.setCreadoPor(user);
-        entity.setActivo(true);
-        entity.setTipoRegistro("LLAMADA");
-        entity.setOrigenRegistro("MANUAL");
-        entity.setEstadoVisita("PENDIENTE");
+        entity.setFuncionario(
+                user
+        );
+
+        entity.setCreadoPor(
+                user
+        );
+
+        entity.setActivo(
+                true
+        );
+
+        entity.setTipoRegistro(
+                "LLAMADA"
+        );
+
+        entity.setOrigenRegistro(
+                "MANUAL"
+        );
+
+        entity.setEstadoVisita(
+                "PENDIENTE"
+        );
 
         entity.setEstadoCaso(
                 CallCenterStatePolicy
@@ -353,11 +455,7 @@ public class CallCenterService {
                 true
         );
 
-        if (
-                currentUserHasRole(
-                        "FUNCIONARIO_CALLCENTER"
-                )
-        ) {
+        if (assignCurrentUser) {
             entity.setFuncionarioCallcenterAsignado(
                     user
             );
@@ -377,7 +475,9 @@ public class CallCenterService {
         }
 
         CallCenterRegistro saved =
-                repository.save(entity);
+                repository.save(
+                        entity
+                );
 
         auditService.safeLog(
                 AuditAction.CREATE,
@@ -387,7 +487,9 @@ public class CallCenterService {
                 snapshot(saved)
         );
 
-        return toResponse(saved);
+        return toResponse(
+                saved
+        );
     }
 
     @Transactional
