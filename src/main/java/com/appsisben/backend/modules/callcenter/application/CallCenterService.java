@@ -91,14 +91,36 @@ public class CallCenterService {
         );
     }
 
+    /**
+     * Ejecuta la consulta general de registros Call Center.
+     *
+     * <p>Los roles autorizados para lectura, incluido
+     * FUNCIONARIO_CALLCENTER, pueden consultar todos los registros
+     * que coincidan con los filtros enviados.</p>
+     *
+     * <p>La bandeja misRegistrosCallcenter(...) conserva el filtro
+     * personal por funcionario autenticado.</p>
+     *
+     * @param filter filtros de consulta.
+     * @param pageable configuración de paginación.
+     * @return página de registros encontrados.
+     */
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> search(
             CallCenterFilterRequest filter,
             Pageable pageable
     ) {
+        Specification<CallCenterRegistro> specification =
+                CallCenterRegistroSpecification
+                        .withResponseGraph()
+                        .and(
+                                CallCenterRegistroSpecification
+                                        .byFilter(filter)
+                        );
+
         Page<CallCenterRegistro> page =
-                findPageForCurrentUser(
-                        CallCenterRegistroSpecification.byFilter(filter),
+                repository.findAll(
+                        specification,
                         pageable
                 );
 
@@ -110,7 +132,6 @@ public class CallCenterService {
                         .toList()
         );
     }
-
     @Transactional(readOnly = true)
     public PageResponse<CallCenterResponse> misAsignaciones(
             Pageable pageable
@@ -238,6 +259,19 @@ public class CallCenterService {
         );
     }
 
+    /**
+     * Consulta un caso Call Center por identificador.
+     *
+     * <p>La consulta es de solo lectura. Los roles autorizados
+     * pueden abrir el detalle aunque el caso se encuentre asignado
+     * a otro funcionario Call Center.</p>
+     *
+     * <p>Las operaciones de escritura conservan la validación
+     * validateCurrentFuncionarioCallcenterCanAccess(...).</p>
+     *
+     * @param id identificador del caso.
+     * @return información del caso.
+     */
     @Transactional(readOnly = true)
     public CallCenterResponse findById(
             Long id
@@ -245,11 +279,9 @@ public class CallCenterService {
         CallCenterRegistro entity =
                 findEntity(id);
 
-        validateCurrentFuncionarioCallcenterCanAccess(
+        return toResponse(
                 entity
         );
-
-        return toResponse(entity);
     }
 
     @Transactional(readOnly = true)

@@ -169,9 +169,19 @@ public class CallCenterController {
         );
     }
 
+    /**
+     * Consulta los funcionarios Call Center activos.
+     *
+     * <p>El catálogo se utiliza tanto en procesos administrativos
+     * como en los filtros de consulta diaria.</p>
+     *
+     * <p>La autorización de lectura del catálogo no concede permiso
+     * para asignar o reasignar casos.</p>
+     *
+     * @return funcionarios Call Center activos.
+     */
     @PreAuthorize(
-            AppRolePreAuthorize
-                    .CALLCENTER_ASSIGN_FUNCIONARIO
+            AppRolePreAuthorize.CALLCENTER_WRITE
     )
     @GetMapping("/catalogs/funcionarios-callcenter")
     public ApiResponse<List<CallCenterUserOptionResponse>>
