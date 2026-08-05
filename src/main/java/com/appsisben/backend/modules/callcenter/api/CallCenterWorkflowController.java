@@ -120,6 +120,41 @@ public class CallCenterWorkflowController {
     }
 
     /**
+     * Modifica la programación de una visita existente.
+     *
+     * <p>Permite cambiar el encuestador, la fecha y la hora
+     * únicamente mientras la visita y el caso continúen
+     * abiertos.</p>
+     *
+     * @param visitaId identificador de la visita.
+     * @param request nueva programación.
+     * @return visita actualizada.
+     */
+    @PreAuthorize(
+            AppRolePreAuthorize
+                    .CALLCENTER_ASSIGN_ENCUESTADOR
+    )
+    @PatchMapping(
+            "/visitas/{visitaId}/programacion"
+    )
+    public ApiResponse<CallCenterVisitaResponse>
+    actualizarProgramacionVisita(
+            @PathVariable Long visitaId,
+            @Valid
+            @RequestBody
+            CallCenterVisitaProgramacionRequest request
+    ) {
+        return ApiResponse.ok(
+                "Programación de visita actualizada correctamente",
+                service.actualizarProgramacionVisita(
+                        visitaId,
+                        request
+                )
+        );
+    }
+
+
+    /**
      * Consulta las visitas asignadas al encuestador autenticado.
      *
      * <p>Permite filtrar por texto general, estado de visita, estado formal

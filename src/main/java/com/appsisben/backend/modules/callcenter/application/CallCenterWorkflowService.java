@@ -8,13 +8,7 @@ import com.appsisben.backend.modules.callcenter.domain.CallCenterMotivoNoDisposi
 import com.appsisben.backend.modules.callcenter.domain.CallCenterRegistro;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterResultadoLlamada;
 import com.appsisben.backend.modules.callcenter.domain.CallCenterVisita;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterGestionLlamadaRequest;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterGestionLlamadaResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterResultadoLlamadaResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaAsignacionRequest;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaFilterRequest;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaResponse;
-import com.appsisben.backend.modules.callcenter.dto.CallCenterVisitaResultadoRequest;
+import com.appsisben.backend.modules.callcenter.dto.*;
 import com.appsisben.backend.modules.callcenter.repository.CallCenterGestionLlamadaRepository;
 import com.appsisben.backend.modules.callcenter.repository.CallCenterMotivoNoContactoRepository;
 import com.appsisben.backend.modules.callcenter.repository.CallCenterMotivoNoDisposicionRepository;
@@ -428,6 +422,226 @@ public class CallCenterWorkflowService {
         );
 
         return toVisitaResponse(saved);
+    }
+
+
+    /**
+     * Modifica la programación de una visita existente.
+     *
+     * <p>La operación actualiza en una sola transacción la
+     * visita y los campos sincronizados del caso maestro.</p>
+     *
+     * <p>Solo se permite cuando la visita está pendiente,
+     * programada o reprogramada y el caso continúa abierto.</p>
+     *
+     * @param visitaId identificador de la visita.
+     * @param request nueva programación.
+     * @return visita actualizada.
+     */
+    @Transactional
+    public CallCenterVisitaResponse
+    actualizarProgramacionVisita(
+            Long visitaId,
+            CallCenterVisitaProgramacionRequest request
+    ) {
+
+        CallCenterVisita visita =
+                visitaRepository
+                        .findById(visitaId)
+                        .orElseThrow(
+                                () ->
+                                        new ResourceNotFoundException(
+                                                "Visita de Call Center no encontrada"
+                                        )
+                        );
+
+        if (
+                !Boolean.TRUE.equals(
+                        visita.getActivo()
+                )
+        ) {
+            throw new BusinessException(
+                    "La visita se encuentra inactiva"
+            );
+        }
+
+        CallCenterRegistro registro =
+                visita.getCallCenterRegistro();
+
+        if (registro == null) {
+            throw new BusinessException(
+                    "La visita no tiene un caso maestro asociado"
+            );
+        }
+
+        User user =
+                currentUser();
+
+        /*
+         * Para FUNCIONARIO_CALLCENTER esta validación confirma
+         * que el caso pertenece al usuario autenticado.
+         *
+         * También bloquea casos cerrados o cancelados.
+         */
+        validateCanManageCallCenterCase(
+                registro,
+                user
+        );
+
+        String estadoVisitaActual =
+                normalize(
+                        visita.getEstadoVisita()
+                );
+
+        List<String> estadosEditables =
+                List.of(
+                        "PENDIENTE",
+                        "PROGRAMADA",
+                        "REPROGRAMADA"
+                );
+
+        if (
+                !estadosEditables.contains(
+                        estadoVisitaActual
+                )
+        ) {
+            throw new BusinessException(
+                    "No se puede modificar la programación "
+                            + "cuando la visita se encuentra "
+                            + "en estado "
+                            + estadoVisitaActual
+            );
+        }
+
+        if (request.encuestadorId() == null) {
+            throw new BusinessException(
+                    "El encuestador es obligatorio"
+            );
+        }
+
+        if (request.fechaProgramada() == null) {
+            throw new BusinessException(
+                    "La fecha programada es obligatoria"
+            );
+        }
+
+        /*
+         * La política valida que el estado general del caso
+         * permita regresar o mantenerse en VISITA_PROGRAMADA.
+         */
+        String targetState =
+                CallCenterStatePolicy
+                        .validateVisitTransition(
+                                registro.getEstadoCaso(),
+                                CallCenterStatePolicy
+                                        .VISITA_PROGRAMADA
+                        );
+
+        Encuestador encuestador =
+                findActiveEncuestador(
+                        request.encuestadorId()
+                );
+
+        Map<String, Object> beforeVisita =
+                snapshotVisita(visita);
+
+        Map<String, Object> beforeRegistro =
+                snapshotRegistro(registro);
+
+        visita.setEncuestador(
+                encuestador
+        );
+
+        visita.setFechaProgramada(
+                request.fechaProgramada()
+        );
+
+        visita.setHoraProgramada(
+                request.horaProgramada()
+        );
+
+        /*
+         * La nueva programación pasa a ser la programación
+         * vigente de la visita.
+         */
+        visita.setEstadoVisita(
+                "PROGRAMADA"
+        );
+
+        /*
+         * La fecha reprogramada anterior deja de ser la fecha
+         * operativa vigente. Su valor previo permanece en la
+         * auditoría antes/después.
+         */
+        visita.setFechaReprogramacion(
+                null
+        );
+
+        visita.setActualizadoPor(
+                user
+        );
+
+        CallCenterVisita saved =
+                visitaRepository.save(
+                        visita
+                );
+
+        /*
+         * Sincronización del caso maestro.
+         */
+        registro.setEncuestadorAsignado(
+                encuestador
+        );
+
+        registro.setEncuestadorProgramado(
+                encuestador
+        );
+
+        registro.setFechaEncuestaProgramada(
+                request.fechaProgramada()
+        );
+
+        registro.setEstadoVisita(
+                saved.getEstadoVisita()
+        );
+
+        registro.setFechaReprogramacion(
+                null
+        );
+
+        registro.setEstadoCaso(
+                targetState
+        );
+
+        registro.setActualizadoPor(
+                user
+        );
+
+        callCenterRegistroRepository.save(
+                registro
+        );
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.UPDATE,
+                TABLE_VISITA,
+                saved.getId(),
+                beforeVisita,
+                snapshotVisita(saved)
+        );
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.UPDATE,
+                TABLE_REGISTRO,
+                registro.getId(),
+                beforeRegistro,
+                snapshotRegistro(registro)
+        );
+
+        return toVisitaResponse(
+                saved
+        );
     }
 
     @Transactional(readOnly = true)

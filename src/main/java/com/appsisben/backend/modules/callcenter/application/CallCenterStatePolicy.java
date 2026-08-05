@@ -15,6 +15,10 @@ import java.util.Set;
  * <p>La llamada y la visita son procesos relacionados, pero una llamada
  * no contestada no cancela, elimina ni aplaza automáticamente una visita
  * previamente asignada o programada.</p>
+ *
+ * <p>Los resultados REALIZADA, NO_ATENDIDA y CANCELADA finalizan
+ * la gestión del caso. REPROGRAMADA conserva el caso abierto para
+ * registrar el resultado de la nueva visita.</p>
  */
 public final class CallCenterStatePolicy {
 
@@ -57,9 +61,6 @@ public final class CallCenterStatePolicy {
     public static final String CANCELADO =
             "CANCELADO";
 
-    /**
-     * Estados reconocidos por el flujo.
-     */
     private static final Set<String> KNOWN_STATES =
             Set.of(
                     PENDIENTE_ENRUTAMIENTO,
@@ -77,21 +78,12 @@ public final class CallCenterStatePolicy {
                     CANCELADO
             );
 
-    /**
-     * Estados finales.
-     */
     private static final Set<String> FINAL_STATES =
             Set.of(
                     CERRADO,
                     CANCELADO
             );
 
-    /**
-     * Estados desde los cuales se puede registrar una llamada.
-     *
-     * <p>Se permite llamar aunque el encuestador ya esté asignado
-     * o la visita esté programada.</p>
-     */
     private static final Set<String> CALL_ALLOWED_STATES =
             Set.of(
                     ASIGNADO_CALLCENTER,
@@ -104,9 +96,6 @@ public final class CallCenterStatePolicy {
                     REPROGRAMADO
             );
 
-    /**
-     * Estados que pueden ser producidos por un resultado de llamada.
-     */
     private static final Set<String> CALL_TARGET_STATES =
             Set.of(
                     EN_GESTION_LLAMADA,
@@ -117,10 +106,6 @@ public final class CallCenterStatePolicy {
                     CANCELADO
             );
 
-    /**
-     * Resultados telefónicos que no deben hacer retroceder
-     * un caso que ya avanzó hacia la visita.
-     */
     private static final Set<String> TELEPHONE_STAGE_STATES =
             Set.of(
                     EN_GESTION_LLAMADA,
@@ -129,10 +114,6 @@ public final class CallCenterStatePolicy {
                     PENDIENTE_ASIGNAR_ENCUESTADOR
             );
 
-    /**
-     * Estados cuyo avance debe conservarse frente a un nuevo
-     * resultado telefónico.
-     */
     private static final Set<String> ADVANCED_FIELD_STATES =
             Set.of(
                     PENDIENTE_ASIGNAR_ENCUESTADOR,
@@ -141,12 +122,6 @@ public final class CallCenterStatePolicy {
                     REPROGRAMADO
             );
 
-    /**
-     * Estados desde los cuales se permite crear la primera
-     * asignación de encuestador.
-     *
-     * <p>No se exige que la llamada haya sido contestada.</p>
-     */
     private static final Set<String> VISIT_ASSIGNMENT_ALLOWED_STATES =
             Set.of(
                     ASIGNADO_CALLCENTER,
@@ -156,10 +131,6 @@ public final class CallCenterStatePolicy {
                     PENDIENTE_ASIGNAR_ENCUESTADOR
             );
 
-    /**
-     * Estados desde los cuales se puede actualizar el resultado
-     * de una visita.
-     */
     private static final Set<String> VISIT_UPDATE_ALLOWED_STATES =
             Set.of(
                     ASIGNADO_ENCUESTADOR,
@@ -169,9 +140,6 @@ public final class CallCenterStatePolicy {
                     VISITA_REALIZADA
             );
 
-    /**
-     * Estados que pueden resultar de una gestión de visita.
-     */
     private static final Set<String> VISIT_TARGET_STATES =
             Set.of(
                     ASIGNADO_ENCUESTADOR,
@@ -182,9 +150,6 @@ public final class CallCenterStatePolicy {
                     CANCELADO
             );
 
-    /**
-     * Transiciones formales permitidas.
-     */
     private static final Map<String, Set<String>> ALLOWED_TRANSITIONS =
             Map.ofEntries(
                     Map.entry(
@@ -278,6 +243,7 @@ public final class CallCenterStatePolicy {
                             Set.of(
                                     VISITA_PROGRAMADA,
                                     REPROGRAMADO,
+                                    CERRADO,
                                     CANCELADO
                             )
                     ),
@@ -313,12 +279,6 @@ public final class CallCenterStatePolicy {
         );
     }
 
-    /**
-     * Mantiene la compatibilidad con CallCenterService.
-     *
-     * <p>El request general puede omitir el estado o enviar el mismo
-     * estado que ya está persistido. No puede cambiarlo.</p>
-     */
     public static void validateGeneralRequestState(
             String currentState,
             String requestedState
@@ -349,13 +309,6 @@ public final class CallCenterStatePolicy {
         }
     }
 
-    /**
-     * Mantiene la compatibilidad con la asignación administrativa
-     * de funcionarios Call Center.
-     *
-     * <p>Se permite desde PENDIENTE_ENRUTAMIENTO y también se permite
-     * repetir sobre ASIGNADO_CALLCENTER de manera idempotente.</p>
-     */
     public static String validateFuncionarioAssignment(
             String currentState
     ) {
@@ -386,9 +339,6 @@ public final class CallCenterStatePolicy {
         return ASIGNADO_CALLCENTER;
     }
 
-    /**
-     * Valida que el caso permita registrar una llamada.
-     */
     public static void validateCanRegisterCall(
             String currentState
     ) {
@@ -411,12 +361,6 @@ public final class CallCenterStatePolicy {
         }
     }
 
-    /**
-     * Valida el resultado de una gestión telefónica.
-     *
-     * <p>Cuando el caso ya avanzó hacia la visita, un resultado
-     * telefónico no hace retroceder su estado.</p>
-     */
     public static String validateCallTransition(
             String currentState,
             String targetState
@@ -437,15 +381,6 @@ public final class CallCenterStatePolicy {
             );
         }
 
-        /*
-         * Ejemplos:
-         *
-         * VISITA_PROGRAMADA + NO_CONTACTADO
-         * conserva VISITA_PROGRAMADA.
-         *
-         * ASIGNADO_ENCUESTADOR + EN_GESTION_LLAMADA
-         * conserva ASIGNADO_ENCUESTADOR.
-         */
         if (
                 ADVANCED_FIELD_STATES.contains(current)
                         && TELEPHONE_STAGE_STATES.contains(target)
@@ -466,12 +401,6 @@ public final class CallCenterStatePolicy {
         return target;
     }
 
-    /**
-     * Valida la asignación inicial de encuestador.
-     *
-     * <p>La asignación no depende de que la llamada haya sido
-     * contestada.</p>
-     */
     public static String validateEncuestadorAssignment(
             String currentState,
             boolean programmed
@@ -512,9 +441,6 @@ public final class CallCenterStatePolicy {
         return target;
     }
 
-    /**
-     * Valida que el caso permita actualizar el resultado de visita.
-     */
     public static void validateCanUpdateVisit(
             String currentState
     ) {
@@ -538,8 +464,13 @@ public final class CallCenterStatePolicy {
     }
 
     /**
-     * Resuelve el estado general del caso a partir del resultado
-     * operativo de la visita.
+     * Resuelve el estado del caso según el resultado de visita.
+     *
+     * <p>REALIZADA y NO_ATENDIDA cierran el caso.</p>
+     *
+     * <p>CANCELADA cancela el caso.</p>
+     *
+     * <p>REPROGRAMADA mantiene el caso abierto.</p>
      */
     public static String resolveStateFromVisit(
             String estadoVisita,
@@ -569,7 +500,7 @@ public final class CallCenterStatePolicy {
                     CERRADO;
 
             case "NO_ATENDIDA" ->
-                    VISITA_NO_ATENDIDA;
+                    CERRADO;
 
             case "REPROGRAMADA" ->
                     REPROGRAMADO;
@@ -585,9 +516,6 @@ public final class CallCenterStatePolicy {
         };
     }
 
-    /**
-     * Valida la transición generada por un resultado de visita.
-     */
     public static String validateVisitTransition(
             String currentState,
             String targetState
@@ -621,13 +549,6 @@ public final class CallCenterStatePolicy {
         return target;
     }
 
-    /**
-     * Normaliza un estado persistido.
-     *
-     * <p>Los registros anteriores que no tengan estado se interpretan
-     * como PENDIENTE_ENRUTAMIENTO, manteniendo compatibilidad con
-     * los datos existentes.</p>
-     */
     public static String normalizeCurrentState(
             String state
     ) {
@@ -648,9 +569,6 @@ public final class CallCenterStatePolicy {
         return normalized;
     }
 
-    /**
-     * Valida y normaliza un estado destino.
-     */
     public static String requireKnownTargetState(
             String state
     ) {
@@ -673,9 +591,6 @@ public final class CallCenterStatePolicy {
         return normalized;
     }
 
-    /**
-     * Indica si el caso se encuentra cerrado o cancelado.
-     */
     public static boolean isFinalState(
             String state
     ) {
@@ -684,9 +599,6 @@ public final class CallCenterStatePolicy {
         );
     }
 
-    /**
-     * Indica si el caso se encuentra cerrado.
-     */
     public static boolean isClosedState(
             String state
     ) {
@@ -695,12 +607,6 @@ public final class CallCenterStatePolicy {
         );
     }
 
-    /**
-     * Indica si el caso se encuentra cancelado.
-     *
-     * <p>Se conserva este método público para compatibilidad con
-     * cualquier servicio o prueba existente.</p>
-     */
     public static boolean isCancelledState(
             String state
     ) {
