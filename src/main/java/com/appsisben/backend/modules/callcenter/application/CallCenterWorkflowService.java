@@ -933,6 +933,595 @@ public class CallCenterWorkflowService {
     }
 
     /**
+     * Obtiene la última gestión telefónica activa de un caso.
+     *
+     * @param callCenterRegistroId identificador del caso.
+     * @return última llamada activa.
+     */
+    @Transactional(readOnly = true)
+    public CallCenterGestionLlamadaResponse
+    findUltimaLlamadaByCaso(
+            Long callCenterRegistroId
+    ) {
+        CallCenterRegistro registro =
+                findRegistro(
+                        callCenterRegistroId
+                );
+
+        validateCanViewCase(
+                registro,
+                currentUser()
+        );
+
+        CallCenterGestionLlamada llamada =
+                gestionLlamadaRepository
+                        .findFirstByCallCenterRegistroIdAndActivoTrueOrderByIntentoNumeroDescIdDesc(
+                                callCenterRegistroId
+                        )
+                        .orElseThrow(
+                                () -> new BusinessException(
+                                        "El caso no tiene una gestión "
+                                                + "de llamada activa"
+                                )
+                        );
+
+        return toGestionResponse(
+                llamada
+        );
+    }
+
+    /**
+     * Obtiene la última visita activa de un caso.
+     *
+     * @param callCenterRegistroId identificador del caso.
+     * @return última visita activa.
+     */
+    @Transactional(readOnly = true)
+    public CallCenterVisitaResponse
+    findUltimaVisitaByCaso(
+            Long callCenterRegistroId
+    ) {
+        CallCenterRegistro registro =
+                findRegistro(
+                        callCenterRegistroId
+                );
+
+        validateCanViewCase(
+                registro,
+                currentUser()
+        );
+
+        CallCenterVisita visita =
+                visitaRepository
+                        .findFirstByCallCenterRegistroIdAndActivoTrueOrderByIdDesc(
+                                callCenterRegistroId
+                        )
+                        .orElseThrow(
+                                () -> new BusinessException(
+                                        "El caso no tiene una visita activa"
+                                )
+                        );
+
+        return toVisitaResponse(
+                visita
+        );
+    }
+
+    /**
+     * Modifica una gestión de llamada existente.
+     *
+     * <p>Esta operación se utiliza únicamente como corrección del
+     * registro completo. No crea un nuevo intento y no modifica
+     * el estado formal alcanzado por el caso.</p>
+     *
+     * @param callCenterRegistroId identificador del caso.
+     * @param llamadaId identificador de la llamada.
+     * @param request datos corregidos.
+     * @return gestión actualizada.
+     */
+    @Transactional
+    public CallCenterGestionLlamadaResponse
+    actualizarLlamadaExistente(
+            Long callCenterRegistroId,
+            Long llamadaId,
+            CallCenterGestionLlamadaRequest request
+    ) {
+        if (request == null) {
+            throw new BusinessException(
+                    "Los datos de la llamada son obligatorios"
+            );
+        }
+
+        CallCenterRegistro registro =
+                findRegistro(
+                        callCenterRegistroId
+                );
+
+        User user =
+                currentUser();
+
+        validateCanManageCallCenterCase(
+                registro,
+                user
+        );
+
+        if (
+                CallCenterStatePolicy.isFinalState(
+                        registro.getEstadoCaso()
+                )
+        ) {
+            throw new BusinessException(
+                    "No se puede modificar la llamada "
+                            + "de un caso cerrado o cancelado"
+            );
+        }
+
+        CallCenterGestionLlamada gestion =
+                gestionLlamadaRepository
+                        .findById(
+                                llamadaId
+                        )
+                        .orElseThrow(
+                                () -> new BusinessException(
+                                        "La gestión de llamada no existe"
+                                )
+                        );
+
+        if (
+                gestion.getCallCenterRegistro() == null
+                        || !Objects.equals(
+                        gestion
+                                .getCallCenterRegistro()
+                                .getId(),
+                        callCenterRegistroId
+                )
+        ) {
+            throw new BusinessException(
+                    "La llamada no pertenece al caso indicado"
+            );
+        }
+
+        if (
+                !Boolean.TRUE.equals(
+                        gestion.getActivo()
+                )
+        ) {
+            throw new BusinessException(
+                    "La llamada seleccionada está inactiva"
+            );
+        }
+
+        String resultadoCodigo =
+                normalizeRequired(
+                        request.resultadoLlamada(),
+                        "El resultado de la llamada es obligatorio"
+                );
+
+        CallCenterResultadoLlamada resultado =
+                resultadoLlamadaRepository
+                        .findFirstByCodigoIgnoreCaseAndActivoTrue(
+                                resultadoCodigo
+                        )
+                        .orElseThrow(
+                                () -> new BusinessException(
+                                        "El resultado de llamada "
+                                                + "seleccionado no existe "
+                                                + "o está inactivo"
+                                )
+                        );
+
+        Boolean llamadaConectada =
+                Boolean.TRUE.equals(
+                        request.llamadaConectada()
+                );
+
+        CallCenterMotivoNoContacto motivoNoContacto =
+                findActiveMotivoNoContacto(
+                        request.motivoNoContactoId()
+                );
+
+        CallCenterMotivoNoDisposicion motivoNoDisposicion =
+                findActiveMotivoNoDisposicion(
+                        request.motivoNoDisposicionId()
+                );
+
+        validateLlamadaRequest(
+                request,
+                resultadoCodigo,
+                llamadaConectada,
+                motivoNoContacto,
+                motivoNoDisposicion
+        );
+
+        String suggestedState =
+                normalize(
+                        resultado.getEstadoCasoSugerido()
+                );
+
+        /*
+         * El registro completo contiene una visita activa.
+         * Por ello no puede corregirse la llamada con un
+         * resultado que cierre o cancele el caso.
+         */
+        if (
+                !isBlank(
+                        suggestedState
+                )
+                        && CallCenterStatePolicy
+                        .isFinalState(
+                                suggestedState
+                        )
+        ) {
+            throw new BusinessException(
+                    "El resultado de llamada seleccionado "
+                            + "finaliza el caso y no es compatible "
+                            + "con la visita activa"
+            );
+        }
+
+        Map<String, Object> beforeGestion =
+                snapshotGestion(
+                        gestion
+                );
+
+        Map<String, Object> beforeRegistro =
+                snapshotRegistro(
+                        registro
+                );
+
+        gestion.setFechaLlamada(
+                request.fechaLlamada() != null
+                        ? request.fechaLlamada()
+                        : LocalDate.now()
+        );
+
+        gestion.setHoraLlamada(
+                request.horaLlamada() != null
+                        ? request.horaLlamada()
+                        : LocalTime.now()
+                        .withNano(0)
+        );
+
+        gestion.setLlamadaConectada(
+                llamadaConectada
+        );
+
+        gestion.setResultadoLlamada(
+                resultado.getCodigo()
+        );
+
+        gestion.setMotivoNoContacto(
+                motivoNoContacto
+        );
+
+        gestion.setMotivoNoDisposicion(
+                motivoNoDisposicion
+        );
+
+        gestion.setFechaReprogramacionLlamada(
+                request.fechaReprogramacionLlamada()
+        );
+
+        gestion.setHoraReprogramacionLlamada(
+                request.horaReprogramacionLlamada()
+        );
+
+        gestion.setObservacion(
+                trimToNull(
+                        request.observacion()
+                )
+        );
+
+        gestion.setActualizadoPor(
+                user
+        );
+
+        CallCenterGestionLlamada saved =
+                gestionLlamadaRepository.save(
+                        gestion
+                );
+
+        /*
+         * Sincroniza los campos espejo del caso maestro,
+         * sin retroceder ni reabrir su estado formal.
+         */
+        registro.setFechaLlamada(
+                saved.getFechaLlamada()
+        );
+
+        registro.setHoraLlamada(
+                saved.getHoraLlamada()
+        );
+
+        registro.setLlamadaConectada(
+                saved.getLlamadaConectada()
+        );
+
+        if (
+                Boolean.TRUE.equals(
+                        saved.getLlamadaConectada()
+                )
+        ) {
+            registro.setMotivoNoContacto(
+                    null
+            );
+
+            registro.setMotivoNoDisposicion(
+                    saved.getMotivoNoDisposicion()
+            );
+
+            applyConfirmedCallData(
+                    registro,
+                    request
+            );
+        } else {
+            registro.setMotivoNoContacto(
+                    saved.getMotivoNoContacto()
+            );
+        }
+
+        /*
+         * No se reemplaza registro.observacion porque corresponde
+         * a la observación general del caso. La observación de la
+         * llamada permanece en callcenter_gestion_llamada.
+         */
+        registro.setActualizadoPor(
+                user
+        );
+
+        callCenterRegistroRepository.save(
+                registro
+        );
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.UPDATE,
+                TABLE_GESTION_LLAMADA,
+                saved.getId(),
+                beforeGestion,
+                snapshotGestion(
+                        saved
+                )
+        );
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.UPDATE,
+                TABLE_REGISTRO,
+                registro.getId(),
+                beforeRegistro,
+                snapshotRegistro(
+                        registro
+                )
+        );
+
+        return toGestionResponse(
+                saved
+        );
+    }
+
+    /**
+     * Modifica la programación de una visita existente.
+     *
+     * <p>Solo permite corregir visitas que todavía se encuentren
+     * pendientes o programadas.</p>
+     *
+     * @param callCenterRegistroId identificador del caso.
+     * @param visitaId identificador de la visita.
+     * @param request programación corregida.
+     * @return visita actualizada.
+     */
+    @Transactional
+    public CallCenterVisitaResponse
+    actualizarProgramacionVisitaExistente(
+            Long callCenterRegistroId,
+            Long visitaId,
+            CallCenterVisitaAsignacionRequest request
+    ) {
+        if (request == null) {
+            throw new BusinessException(
+                    "Los datos de la visita son obligatorios"
+            );
+        }
+
+        if (request.encuestadorId() == null) {
+            throw new BusinessException(
+                    "Debe seleccionar el encuestador"
+            );
+        }
+
+        if (request.fechaProgramada() == null) {
+            throw new BusinessException(
+                    "La fecha programada de la visita "
+                            + "es obligatoria"
+            );
+        }
+
+        if (request.horaProgramada() == null) {
+            throw new BusinessException(
+                    "La hora programada de la visita "
+                            + "es obligatoria"
+            );
+        }
+
+        CallCenterRegistro registro =
+                findRegistro(
+                        callCenterRegistroId
+                );
+
+        User user =
+                currentUser();
+
+        validateCanManageCallCenterCase(
+                registro,
+                user
+        );
+
+        if (
+                CallCenterStatePolicy.isFinalState(
+                        registro.getEstadoCaso()
+                )
+        ) {
+            throw new BusinessException(
+                    "No se puede modificar la visita "
+                            + "de un caso cerrado o cancelado"
+            );
+        }
+
+        CallCenterVisita visita =
+                visitaRepository
+                        .findById(
+                                visitaId
+                        )
+                        .orElseThrow(
+                                () -> new BusinessException(
+                                        "La visita seleccionada no existe"
+                                )
+                        );
+
+        if (
+                visita.getCallCenterRegistro() == null
+                        || !Objects.equals(
+                        visita
+                                .getCallCenterRegistro()
+                                .getId(),
+                        callCenterRegistroId
+                )
+        ) {
+            throw new BusinessException(
+                    "La visita no pertenece al caso indicado"
+            );
+        }
+
+        if (
+                !Boolean.TRUE.equals(
+                        visita.getActivo()
+                )
+        ) {
+            throw new BusinessException(
+                    "La visita seleccionada está inactiva"
+            );
+        }
+
+        String estadoVisita =
+                normalize(
+                        visita.getEstadoVisita()
+                );
+
+        if (
+                Boolean.TRUE.equals(
+                        visita.getEncuestaRealizada()
+                )
+                        || (
+                        !"PENDIENTE".equals(
+                                estadoVisita
+                        )
+                                && !"PROGRAMADA".equals(
+                                estadoVisita
+                        )
+                )
+        ) {
+            throw new BusinessException(
+                    "La visita ya tiene gestión de campo "
+                            + "y no puede modificarse desde "
+                            + "el registro completo"
+            );
+        }
+
+        Encuestador encuestador =
+                findActiveEncuestador(
+                        request.encuestadorId()
+                );
+
+        Map<String, Object> beforeVisita =
+                snapshotVisita(
+                        visita
+                );
+
+        Map<String, Object> beforeRegistro =
+                snapshotRegistro(
+                        registro
+                );
+
+        visita.setEncuestador(
+                encuestador
+        );
+
+        visita.setFechaProgramada(
+                request.fechaProgramada()
+        );
+
+        visita.setHoraProgramada(
+                request.horaProgramada()
+        );
+
+        visita.setObservacionEncuestador(
+                trimToNull(
+                        request.observacion()
+                )
+        );
+
+        visita.setActualizadoPor(
+                user
+        );
+
+        CallCenterVisita saved =
+                visitaRepository.save(
+                        visita
+                );
+
+        registro.setEncuestadorAsignado(
+                encuestador
+        );
+
+        registro.setEncuestadorProgramado(
+                encuestador
+        );
+
+        registro.setFechaEncuestaProgramada(
+                saved.getFechaProgramada()
+        );
+
+        registro.setEstadoVisita(
+                saved.getEstadoVisita()
+        );
+
+        registro.setActualizadoPor(
+                user
+        );
+
+        callCenterRegistroRepository.save(
+                registro
+        );
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.UPDATE,
+                TABLE_VISITA,
+                saved.getId(),
+                beforeVisita,
+                snapshotVisita(
+                        saved
+                )
+        );
+
+        auditService.safeLogWithUser(
+                user,
+                AuditAction.UPDATE,
+                TABLE_REGISTRO,
+                registro.getId(),
+                beforeRegistro,
+                snapshotRegistro(
+                        registro
+                )
+        );
+
+        return toVisitaResponse(
+                saved
+        );
+    }
+
+    /**
      * Actualiza en el caso maestro la última información
      * confirmada durante una llamada conectada.
      *

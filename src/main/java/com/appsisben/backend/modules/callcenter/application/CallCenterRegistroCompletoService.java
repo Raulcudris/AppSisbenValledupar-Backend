@@ -179,6 +179,166 @@ public class CallCenterRegistroCompletoService {
      * Los datos operativos de llamada y visita se guardan
      * mediante sus servicios formales.
      */
+
+    /**
+     * Consulta el agregado completo editable de un caso.
+     *
+     * @param registroId identificador del caso.
+     * @return caso, última llamada y visita activa.
+     */
+    @Transactional(readOnly = true)
+    public CallCenterRegistroCompletoResponse consultar(
+            Long registroId
+    ) {
+        CallCenterResponse registro =
+                callCenterService.findById(
+                        registroId
+                );
+
+        CallCenterGestionLlamadaResponse llamada =
+                callCenterWorkflowService
+                        .findUltimaLlamadaByCaso(
+                                registroId
+                        );
+
+        CallCenterVisitaResponse visita =
+                callCenterWorkflowService
+                        .findUltimaVisitaByCaso(
+                                registroId
+                        );
+
+        return new CallCenterRegistroCompletoResponse(
+                registro,
+                llamada,
+                visita
+        );
+    }
+
+    /**
+     * Actualiza transaccionalmente el registro completo.
+     *
+     * <p>La transacción modifica:</p>
+     *
+     * <ol>
+     *     <li>Datos generales del caso.</li>
+     *     <li>Última llamada activa.</li>
+     *     <li>Visita activa.</li>
+     * </ol>
+     *
+     * @param registroId identificador del caso.
+     * @param request información completa corregida.
+     * @return agregado actualizado.
+     */
+    @Transactional
+    public CallCenterRegistroCompletoResponse actualizar(
+            Long registroId,
+            CallCenterRegistroCompletoRequest request
+    ) {
+        validateRequest(
+                request
+        );
+
+        CallCenterRegistroCompletoResponse current =
+                consultar(
+                        registroId
+                );
+
+        if (
+                current.registro() == null
+                        || current.llamada() == null
+                        || current.visita() == null
+        ) {
+            throw new BusinessException(
+                    "El caso no contiene el registro completo "
+                            + "necesario para la edición"
+            );
+        }
+
+        if (
+                Boolean.FALSE.equals(
+                        current.registro().activo()
+                )
+        ) {
+            throw new BusinessException(
+                    "No se puede modificar un caso inactivo"
+            );
+        }
+
+        if (
+                CallCenterStatePolicy.isFinalState(
+                        current.registro().estadoCaso()
+                )
+        ) {
+            throw new BusinessException(
+                    "No se puede modificar un caso "
+                            + "cerrado o cancelado"
+            );
+        }
+
+        String tipoSolicitud =
+                normalizeRequired(
+                        request
+                                .registro()
+                                .tipoSolicitudCallcenter(),
+                        "El tipo de solicitud es obligatorio"
+                );
+
+        validateTipoSolicitud(
+                tipoSolicitud
+        );
+
+        String cedula =
+                cleanRequired(
+                        request
+                                .registro()
+                                .cedulaSolicitante(),
+                        "La cédula del solicitante es obligatoria"
+                );
+
+        validateNoPendingSurveyForUpdate(
+                registroId,
+                tipoSolicitud,
+                request
+                        .registro()
+                        .ventanillaRegistroId(),
+                cedula
+        );
+
+        /*
+         * CallCenterService.update conserva su protección actual.
+         * Se le envían sin modificar los campos operativos protegidos.
+         */
+        CallCenterRequest generalRequest =
+                buildUpdateRequest(
+                        current.registro(),
+                        request,
+                        tipoSolicitud,
+                        cedula
+                );
+
+        callCenterService.update(
+                registroId,
+                generalRequest
+        );
+
+        callCenterWorkflowService
+                .actualizarLlamadaExistente(
+                        registroId,
+                        current.llamada().id(),
+                        request.llamada()
+                );
+
+        callCenterWorkflowService
+                .actualizarProgramacionVisitaExistente(
+                        registroId,
+                        current.visita().id(),
+                        request.visita()
+                );
+
+        return consultar(
+                registroId
+        );
+    }
     private CallCenterRequest buildCreateRequest(
             CallCenterRegistroCompletoRequest completeRequest,
             String tipoSolicitud,
@@ -302,6 +462,115 @@ public class CallCenterRegistroCompletoService {
         validateVisita(
                 request.visita()
         );
+    }
+
+    /**
+     * Construye la actualización general del caso preservando
+     * los campos operativos protegidos.
+     */
+    private CallCenterRequest buildUpdateRequest(
+            CallCenterResponse current,
+            CallCenterRegistroCompletoRequest completeRequest,
+            String tipoSolicitud,
+            String cedula
+    ) {
+        CallCenterRequest registro =
+                completeRequest.registro();
+
+        return new CallCenterRequest(
+                current.marcaTemporal(),
+
+                /*
+                 * Se conservan temporalmente. La llamada existente
+                 * los actualizará dentro de la misma transacción.
+                 */
+                current.fechaLlamada(),
+                current.horaLlamada(),
+
+                current.tipoRegistro(),
+
+                registro.origenRegistro(),
+                registro.ventanillaRegistroId(),
+
+                cedula,
+
+                cleanRequired(
+                        registro.nombreCompleto(),
+                        "El nombre completo es obligatorio"
+                ),
+
+                clean(
+                        registro.telefono()
+                ),
+
+                /*
+                 * Campos operativos protegidos.
+                 */
+                current.llamadaConectada(),
+                current.motivoNoContactoId(),
+                current.motivoNoContactoTexto(),
+                current.encuestadorProgramadoId(),
+                current.fechaEncuestaProgramada(),
+                current.solicitoNuevaEncuesta(),
+
+                cleanRequired(
+                        registro.direccionTexto(),
+                        "La dirección es obligatoria"
+                ),
+
+                registro.barrioId(),
+
+                current.fechaAplicacionInformada(),
+                current.disposicionRecibirEncuesta(),
+                current.motivoNoDisposicionId(),
+                current.motivoNoDisposicionTexto(),
+                current.encuestadorAsignadoId(),
+                current.explicoInformanteCalificado(),
+                current.verificado(),
+                current.estadoCaso(),
+
+                tipoSolicitud,
+
+                clean(
+                        registro.observacion()
+                ),
+
+                current.activo()
+        );
+    }
+
+    /**
+     * Valida duplicidad en edición excluyendo el caso actual.
+     */
+    private void validateNoPendingSurveyForUpdate(
+            Long registroId,
+            String tipoSolicitud,
+            Long ventanillaRegistroId,
+            String cedula
+    ) {
+        if (
+                !TIPO_NUEVA_ENCUESTA.equals(
+                        tipoSolicitud
+                )
+        ) {
+            return;
+        }
+
+        boolean exists =
+                !callCenterRegistroRepository
+                        .findAsignacionNuevaEncuestaPendiente(
+                                registroId,
+                                ventanillaRegistroId,
+                                cedula
+                        )
+                        .isEmpty();
+
+        if (exists) {
+            throw new BusinessException(
+                    "El ciudadano ya tiene otra nueva encuesta "
+                            + "activa y pendiente de realización"
+            );
+        }
     }
 
     private void validateVisita(
