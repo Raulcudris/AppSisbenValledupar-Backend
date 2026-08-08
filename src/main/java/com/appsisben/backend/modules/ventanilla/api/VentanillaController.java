@@ -1,4 +1,5 @@
 package com.appsisben.backend.modules.ventanilla.api;
+
 import com.appsisben.backend.modules.ventanilla.application.VentanillaService;
 import com.appsisben.backend.modules.ventanilla.dto.*;
 import com.appsisben.backend.security.AppRolePreAuthorize;
@@ -13,19 +14,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
 import java.time.LocalDate;
-import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -34,123 +25,282 @@ public class VentanillaController {
 
     private final VentanillaService service;
 
+    /**
+     * Consulta general de registros de Ventanilla.
+     */
     @PreAuthorize(AppRolePreAuthorize.VENTANILLA_READ)
     @GetMapping
-    public ApiResponse<PageResponse<VentanillaResponse>> findAll(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+    public ApiResponse<PageResponse<VentanillaResponse>>
+    findAll(
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "20")
+            int size
     ) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("fecha").descending());
-        return ApiResponse.ok(service.findAll(pageable));
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by("fecha").descending()
+                );
+
+        return ApiResponse.ok(
+                service.findAll(pageable)
+        );
     }
 
-    @PreAuthorize(AppRolePreAuthorize.VENTANILLA_READ)
+    /**
+     * Busca registros de Ventanilla.
+     *
+     * Esta consulta también está autorizada para
+     * FUNCIONARIO_CALLCENTER porque se utiliza para
+     * capturar y precargar información del ciudadano
+     * durante el flujo de Call Center.
+     */
+    @PreAuthorize(
+            AppRolePreAuthorize.VENTANILLA_SEARCH_READ
+    )
     @GetMapping("/search")
-    public ApiResponse<PageResponse<VentanillaResponse>> search(
-            @ModelAttribute VentanillaFilterRequest filter,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+    public ApiResponse<PageResponse<VentanillaResponse>>
+    search(
+            @ModelAttribute
+            VentanillaFilterRequest filter,
+
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "20")
+            int size
     ) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("fecha").descending());
-        return ApiResponse.ok(service.search(filter, pageable));
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by("fecha").descending()
+                );
+
+        return ApiResponse.ok(
+                service.search(
+                        filter,
+                        pageable
+                )
+        );
     }
 
     @PreAuthorize(AppRolePreAuthorize.VENTANILLA_READ)
     @GetMapping("/historial/usuario/export/pdf")
-    public ResponseEntity<byte[]> exportUserHistoryPdf(
-            @RequestParam String cedulaUsuario
+    public ResponseEntity<byte[]>
+    exportUserHistoryPdf(
+            @RequestParam
+            String cedulaUsuario
     ) {
-        byte[] file = service.exportUserHistoryPdf(cedulaUsuario);
-        String filename = "historial-usuario-" + cedulaUsuario.trim() + ".pdf";
+        byte[] file =
+                service.exportUserHistoryPdf(
+                        cedulaUsuario
+                );
+
+        String filename =
+                "historial-usuario-"
+                        + cedulaUsuario.trim()
+                        + ".pdf";
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .contentType(MediaType.APPLICATION_PDF)
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\""
+                                + filename
+                                + "\""
+                )
+                .contentType(
+                        MediaType.APPLICATION_PDF
+                )
                 .body(file);
     }
+
     @PreAuthorize(AppRolePreAuthorize.VENTANILLA_READ)
     @GetMapping("/historial/usuarios")
-    public ApiResponse<PageResponse<VentanillaUserHistorySummaryResponse>> findUserHistorySummaries(
-            @RequestParam(required = false) String search,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+    public ApiResponse<
+            PageResponse<VentanillaUserHistorySummaryResponse>
+            >
+    findUserHistorySummaries(
+            @RequestParam(required = false)
+            String search,
+
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "20")
+            int size
     ) {
-        Pageable pageable = PageRequest.of(page, size);
-        return ApiResponse.ok(service.findUserHistorySummaries(search, pageable));
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size
+                );
+
+        return ApiResponse.ok(
+                service.findUserHistorySummaries(
+                        search,
+                        pageable
+                )
+        );
     }
 
     @PreAuthorize(AppRolePreAuthorize.VENTANILLA_READ)
     @GetMapping("/historial/usuario")
-    public ApiResponse<VentanillaUserHistoryResponse> findUserHistory(
-            @RequestParam String cedulaUsuario
+    public ApiResponse<VentanillaUserHistoryResponse>
+    findUserHistory(
+            @RequestParam
+            String cedulaUsuario
     ) {
-        return ApiResponse.ok(service.findUserHistory(cedulaUsuario));
+        return ApiResponse.ok(
+                service.findUserHistory(
+                        cedulaUsuario
+                )
+        );
     }
 
     @PreAuthorize(AppRolePreAuthorize.VENTANILLA_READ)
     @GetMapping("/historial/usuario/export")
-    public ResponseEntity<byte[]> exportUserHistory(
-            @RequestParam String cedulaUsuario
+    public ResponseEntity<byte[]>
+    exportUserHistory(
+            @RequestParam
+            String cedulaUsuario
     ) {
-        byte[] file = service.exportUserHistory(cedulaUsuario);
-        String filename = "historial-usuario-" + cedulaUsuario.trim() + ".csv";
+        byte[] file =
+                service.exportUserHistory(
+                        cedulaUsuario
+                );
+
+        String filename =
+                "historial-usuario-"
+                        + cedulaUsuario.trim()
+                        + ".csv";
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\""
+                                + filename
+                                + "\""
+                )
+                .contentType(
+                        MediaType.parseMediaType(
+                                "text/csv; charset=UTF-8"
+                        )
+                )
                 .body(file);
     }
+
     @PreAuthorize(AppRolePreAuthorize.VENTANILLA_WRITE)
     @GetMapping("/validacion-previa")
-    public ApiResponse<VentanillaDailyValidationResponse> validateBeforeSave(
-            @RequestParam(required = false) Long currentId,
-            @RequestParam LocalDate fecha,
-            @RequestParam String cedulaUsuario,
-            @RequestParam Long solicitudId
+    public ApiResponse<VentanillaDailyValidationResponse>
+    validateBeforeSave(
+            @RequestParam(required = false)
+            Long currentId,
+
+            @RequestParam
+            LocalDate fecha,
+
+            @RequestParam
+            String cedulaUsuario,
+
+            @RequestParam
+            Long solicitudId
     ) {
-        return ApiResponse.ok(service.validateBeforeSave(currentId, fecha, cedulaUsuario, solicitudId));
+        return ApiResponse.ok(
+                service.validateBeforeSave(
+                        currentId,
+                        fecha,
+                        cedulaUsuario,
+                        solicitudId
+                )
+        );
     }
 
     @PreAuthorize(AppRolePreAuthorize.VENTANILLA_READ)
     @GetMapping("/historial/ciudadano")
-    public ApiResponse<VentanillaCitizenHistoryResponse> findCitizenHistory(
-            @RequestParam String cedulaUsuario
+    public ApiResponse<VentanillaCitizenHistoryResponse>
+    findCitizenHistory(
+            @RequestParam
+            String cedulaUsuario
     ) {
-        return ApiResponse.ok(service.findCitizenHistory(cedulaUsuario));
+        return ApiResponse.ok(
+                service.findCitizenHistory(
+                        cedulaUsuario
+                )
+        );
     }
 
     @PreAuthorize(AppRolePreAuthorize.VENTANILLA_READ)
     @GetMapping("/{id}")
-    public ApiResponse<VentanillaResponse> findById(@PathVariable Long id) {
-        return ApiResponse.ok(service.findById(id));
+    public ApiResponse<VentanillaResponse>
+    findById(
+            @PathVariable
+            Long id
+    ) {
+        return ApiResponse.ok(
+                service.findById(id)
+        );
     }
 
     @PreAuthorize(AppRolePreAuthorize.VENTANILLA_WRITE)
     @PostMapping
-    public ApiResponse<VentanillaResponse> create(@Valid @RequestBody VentanillaRequest request) {
-        return ApiResponse.ok("Registro de ventanilla creado correctamente", service.create(request));
+    public ApiResponse<VentanillaResponse>
+    create(
+            @Valid
+            @RequestBody
+            VentanillaRequest request
+    ) {
+        return ApiResponse.ok(
+                "Registro de ventanilla creado correctamente",
+                service.create(request)
+        );
     }
 
     @PreAuthorize(AppRolePreAuthorize.VENTANILLA_WRITE)
     @PutMapping("/{id}")
-    public ApiResponse<VentanillaResponse> update(
-            @PathVariable Long id,
-            @Valid @RequestBody VentanillaRequest request
+    public ApiResponse<VentanillaResponse>
+    update(
+            @PathVariable
+            Long id,
+
+            @Valid
+            @RequestBody
+            VentanillaRequest request
     ) {
-        return ApiResponse.ok("Registro de ventanilla actualizado correctamente", service.update(id, request));
+        return ApiResponse.ok(
+                "Registro de ventanilla actualizado correctamente",
+                service.update(
+                        id,
+                        request
+                )
+        );
     }
 
     @PreAuthorize(AppRolePreAuthorize.VENTANILLA_WRITE)
     @PatchMapping("/{id}/inactivar")
-    public ApiResponse<Void> inactivate(@PathVariable Long id) {
+    public ApiResponse<Void>
+    inactivate(
+            @PathVariable
+            Long id
+    ) {
         service.inactivate(id);
 
-        return ApiResponse.ok("Registro de ventanilla retirado correctamente", null);
+        return ApiResponse.ok(
+                "Registro de ventanilla retirado correctamente",
+                null
+        );
     }
 
     @PreAuthorize(AppRolePreAuthorize.ADMIN)
     @PatchMapping("/{id}/activar")
-    public ApiResponse<Void> activate(@PathVariable Long id) {
+    public ApiResponse<Void>
+    activate(
+            @PathVariable
+            Long id
+    ) {
         service.activate(id);
 
         return ApiResponse.ok(
@@ -161,9 +311,14 @@ public class VentanillaController {
 
     @PreAuthorize(AppRolePreAuthorize.ADMIN)
     @PatchMapping("/{id}/estado")
-    public ApiResponse<Void> changeActiveStatus(
-            @PathVariable Long id,
-            @Valid @RequestBody VentanillaActiveStatusRequest request
+    public ApiResponse<Void>
+    changeActiveStatus(
+            @PathVariable
+            Long id,
+
+            @Valid
+            @RequestBody
+            VentanillaActiveStatusRequest request
     ) {
         service.changeActiveStatus(
                 id,
@@ -171,7 +326,9 @@ public class VentanillaController {
         );
 
         return ApiResponse.ok(
-                Boolean.TRUE.equals(request.activo())
+                Boolean.TRUE.equals(
+                        request.activo()
+                )
                         ? "Registro de ventanilla activado correctamente"
                         : "Registro de ventanilla inactivado correctamente",
                 null
@@ -180,7 +337,11 @@ public class VentanillaController {
 
     @PreAuthorize(AppRolePreAuthorize.ADMIN)
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
+    public ApiResponse<Void>
+    delete(
+            @PathVariable
+            Long id
+    ) {
         service.delete(id);
 
         return ApiResponse.ok(

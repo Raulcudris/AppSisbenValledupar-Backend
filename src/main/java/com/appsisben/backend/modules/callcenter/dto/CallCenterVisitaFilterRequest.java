@@ -1,26 +1,34 @@
 package com.appsisben.backend.modules.callcenter.dto;
 
+import org.springframework.format.annotation.DateTimeFormat;
+
 import java.time.LocalDate;
 
 /**
- * Filtros de búsqueda para consultar visitas asignadas del módulo Call Center.
- *
- * <p>Este DTO permite filtrar las visitas por texto general, estado operativo,
- * estado formal del caso maestro, condición funcional y rango de fecha
- * programada.</p>
- *
- * @param q texto de búsqueda general.
- * @param estadoVisita estado operativo de la visita.
- * @param estadoCaso estado formal del caso maestro.
- * @param condicion condición funcional de la visita o del caso.
- * @param fechaDesde fecha programada inicial.
- * @param fechaHasta fecha programada final.
+ * Filtros disponibles para la consulta de visitas
+ * del flujo de Call Center.
  */
 public record CallCenterVisitaFilterRequest(
+
         String q,
+
         String estadoVisita,
+
         String estadoCaso,
+
         String condicion,
+
+        @DateTimeFormat(
+                iso = DateTimeFormat.ISO.DATE
+        )
         LocalDate fechaDesde,
-        LocalDate fechaHasta
-) {}
+
+        @DateTimeFormat(
+                iso = DateTimeFormat.ISO.DATE
+        )
+        LocalDate fechaHasta,
+
+        Long encuestadorId
+
+) {
+}

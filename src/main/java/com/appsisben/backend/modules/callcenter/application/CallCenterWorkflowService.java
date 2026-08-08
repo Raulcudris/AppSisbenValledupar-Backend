@@ -651,7 +651,8 @@ public class CallCenterWorkflowService {
             Pageable pageable
     ) {
 
-        User user = currentUser();
+        User user =
+                currentUser();
 
         Specification<CallCenterVisita> specification =
                 CallCenterVisitaSpecification
@@ -661,6 +662,13 @@ public class CallCenterWorkflowService {
                                         .byFilter(filter)
                         );
 
+        /*
+         * Regla prioritaria:
+         *
+         * un FUNCIONARIO_ENCUESTADOR jamás puede utilizar
+         * encuestadorId para consultar visitas de otro
+         * encuestador.
+         */
         if (
                 currentUserHasRole(
                         "FUNCIONARIO_ENCUESTADOR"
@@ -675,6 +683,45 @@ public class CallCenterWorkflowService {
                             CallCenterVisitaSpecification
                                     .byEncuestador(
                                             encuestador.getId()
+                                    )
+                    );
+
+        } else if (
+                filter != null
+                        && filter.encuestadorId() != null
+        ) {
+
+            /*
+             * El filtro administrativo por encuestador
+             * solamente está permitido para estos roles.
+             */
+            boolean canFilterByEncuestador =
+                    currentUserHasAnyRole(
+                            "ADMIN",
+                            "COORDINADOR_CALLCENTER",
+                            "FUNCIONARIO_CALLCENTER"
+                    );
+
+            if (!canFilterByEncuestador) {
+                throw new BusinessException(
+                        "No tiene permisos para filtrar "
+                                + "asignaciones por encuestador"
+                );
+            }
+
+            /*
+             * Se valida además que el encuestador solicitado
+             * exista y permanezca activo.
+             */
+            findActiveEncuestador(
+                    filter.encuestadorId()
+            );
+
+            specification =
+                    specification.and(
+                            CallCenterVisitaSpecification
+                                    .byEncuestador(
+                                            filter.encuestadorId()
                                     )
                     );
         }
@@ -693,6 +740,79 @@ public class CallCenterWorkflowService {
                         .toList()
         );
     }
+    /**
+     * Consulta la agenda diaria de un encuestador seleccionado.
+     *
+     * <p>Esta consulta administrativa está disponible únicamente
+     * para administradores, funcionarios Call Center y
+     * coordinadores Call Center.</p>
+     *
+     * <p>La fecha operativa corresponde a fechaProgramada, excepto
+     * para visitas en estado REPROGRAMADA, donde se utiliza
+     * fechaReprogramacion.</p>
+     *
+     * @param encuestadorId identificador del encuestador.
+     * @param fecha fecha de las visitas.
+     * @param pageable configuración de paginación.
+     * @return página de visitas programadas.
+     */
+    @Transactional(readOnly = true)
+    public PageResponse<CallCenterVisitaResponse>
+    agendaVisitas(
+            Long encuestadorId,
+            LocalDate fecha,
+            Pageable pageable
+    ) {
+        boolean allowed =
+                currentUserHasAnyRole(
+                        "ADMIN",
+                        "FUNCIONARIO_CALLCENTER",
+                        "COORDINADOR_CALLCENTER"
+                );
+
+        if (!allowed) {
+            throw new BusinessException(
+                    "No tiene permisos para consultar "
+                            + "la agenda de otros encuestadores"
+            );
+        }
+
+        if (encuestadorId == null) {
+            throw new BusinessException(
+                    "Debe seleccionar un encuestador"
+            );
+        }
+
+        if (fecha == null) {
+            throw new BusinessException(
+                    "Debe seleccionar la fecha de la visita"
+            );
+        }
+
+        /*
+         * Confirma que el encuestador existe y se encuentra activo.
+         */
+        findActiveEncuestador(
+                encuestadorId
+        );
+
+        Page<CallCenterVisita> page =
+                visitaRepository
+                        .findAgendaByEncuestadorAndFecha(
+                                encuestadorId,
+                                fecha,
+                                pageable
+                        );
+
+        return PageResponse.from(
+                page,
+                page.getContent()
+                        .stream()
+                        .map(this::toVisitaResponse)
+                        .toList()
+        );
+    }
+
 
     @Transactional
     public CallCenterVisitaResponse actualizarResultadoVisita(

@@ -33,6 +33,21 @@ public final class AppRolePreAuthorize {
                         "'CONSULTA'" +
                         ")";
 
+        /**
+         * Lectura específica del catálogo de encuestadores.
+         */
+        public static final String
+                ENCUESTADOR_CATALOG_READ =
+                "hasAnyRole(" +
+                        "'ADMIN', " +
+                        "'SUPERVISOR', " +
+                        "'COORDINADOR_CALLCENTER', " +
+                        "'FUNCIONARIO_VENTANILLA', " +
+                        "'FUNCIONARIO_DMC', " +
+                        "'FUNCIONARIO_CALLCENTER', " +
+                        "'CONSULTA'" +
+                        ")";
+
         public static final String CATALOG_WRITE =
                 ADMIN_OR_SUPERVISOR;
 
@@ -42,11 +57,33 @@ public final class AppRolePreAuthorize {
         public static final String TERRITORY_WRITE =
                 CATALOG_WRITE;
 
+        /**
+         * Lectura general del módulo Ventanilla.
+         *
+         * FUNCIONARIO_CALLCENTER no se incluye aquí para
+         * evitar otorgarle acceso general al módulo.
+         */
         public static final String VENTANILLA_READ =
                 "hasAnyRole(" +
                         "'ADMIN', " +
                         "'SUPERVISOR', " +
                         "'FUNCIONARIO_VENTANILLA', " +
+                        "'CONSULTA'" +
+                        ")";
+
+        /**
+         * Consulta de registros de Ventanilla.
+         *
+         * Incluye FUNCIONARIO_CALLCENTER únicamente para
+         * permitir la búsqueda necesaria durante la captura
+         * y precarga de información en Call Center.
+         */
+        public static final String VENTANILLA_SEARCH_READ =
+                "hasAnyRole(" +
+                        "'ADMIN', " +
+                        "'SUPERVISOR', " +
+                        "'FUNCIONARIO_VENTANILLA', " +
+                        "'FUNCIONARIO_CALLCENTER', " +
                         "'CONSULTA'" +
                         ")";
 
@@ -87,6 +124,17 @@ public final class AppRolePreAuthorize {
                         ")";
 
         /**
+         * Lectura administrativa de agenda de visitas.
+         */
+        public static final String
+                CALLCENTER_AGENDA_VISITAS_READ =
+                "hasAnyRole(" +
+                        "'ADMIN', " +
+                        "'COORDINADOR_CALLCENTER', " +
+                        "'FUNCIONARIO_CALLCENTER'" +
+                        ")";
+
+        /**
          * Escritura general del módulo Call Center.
          */
         public static final String CALLCENTER_WRITE =
@@ -99,12 +147,6 @@ public final class AppRolePreAuthorize {
 
         /**
          * Registro completo de un caso propio.
-         *
-         * El responsable se obtiene desde el usuario autenticado.
-         * La operación puede ser realizada por:
-         *
-         * - ADMIN
-         * - FUNCIONARIO_CALLCENTER
          */
         public static final String
                 CALLCENTER_SELF_REGISTER =
@@ -115,9 +157,6 @@ public final class AppRolePreAuthorize {
 
         /**
          * Asignación administrativa de casos a funcionarios.
-         *
-         * Se conserva para el flujo administrativo y la
-         * operación especial de última hora.
          */
         public static final String
                 CALLCENTER_ASSIGN_FUNCIONARIO =

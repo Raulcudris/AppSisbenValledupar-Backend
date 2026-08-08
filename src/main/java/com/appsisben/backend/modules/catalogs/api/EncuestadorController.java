@@ -1,4 +1,5 @@
 package com.appsisben.backend.modules.catalogs.api;
+
 import com.appsisben.backend.modules.catalogs.application.EncuestadorService;
 import com.appsisben.backend.modules.catalogs.dto.EncuestadorRequest;
 import com.appsisben.backend.modules.catalogs.dto.EncuestadorResponse;
@@ -28,43 +29,117 @@ public class EncuestadorController {
 
     private final EncuestadorService service;
 
-    @PreAuthorize(AppRolePreAuthorize.CATALOG_READ)
+    @PreAuthorize(
+            AppRolePreAuthorize
+                    .ENCUESTADOR_CATALOG_READ
+    )
     @GetMapping
-    public ApiResponse<PageResponse<EncuestadorResponse>> findAll(
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+    public ApiResponse<PageResponse<EncuestadorResponse>>
+    findAll(
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "20")
+            int size
     ) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by("nombre").ascending());
-        return ApiResponse.ok(service.findAll(pageable));
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by("nombre").ascending()
+                );
+
+        return ApiResponse.ok(
+                service.findAll(pageable)
+        );
     }
 
-    @PreAuthorize(AppRolePreAuthorize.CATALOG_READ)
+    @PreAuthorize(
+            AppRolePreAuthorize
+                    .ENCUESTADOR_CATALOG_READ
+    )
     @GetMapping("/{id}")
-    public ApiResponse<EncuestadorResponse> findById(@PathVariable Long id) {
-        return ApiResponse.ok(service.findById(id));
+    public ApiResponse<EncuestadorResponse>
+    findById(
+            @PathVariable
+            Long id
+    ) {
+        return ApiResponse.ok(
+                service.findById(id)
+        );
     }
 
-    @PreAuthorize(AppRolePreAuthorize.CATALOG_WRITE)
+    @PreAuthorize(
+            AppRolePreAuthorize.CATALOG_WRITE
+    )
     @PostMapping
-    public ApiResponse<EncuestadorResponse> create(@Valid @RequestBody EncuestadorRequest request) {
-        return ApiResponse.ok("Encuestador creado correctamente", service.create(request));
+    public ApiResponse<EncuestadorResponse>
+    create(
+            @Valid
+            @RequestBody
+            EncuestadorRequest request
+    ) {
+        return ApiResponse.ok(
+                "Encuestador creado correctamente",
+                service.create(request)
+        );
     }
 
-    @PreAuthorize(AppRolePreAuthorize.CATALOG_WRITE)
+    @PreAuthorize(
+            AppRolePreAuthorize.CATALOG_WRITE
+    )
     @PutMapping("/{id}")
-    public ApiResponse<EncuestadorResponse> update(@PathVariable Long id, @Valid @RequestBody EncuestadorRequest request) {
-        return ApiResponse.ok("Encuestador actualizado correctamente", service.update(id, request));
+    public ApiResponse<EncuestadorResponse>
+    update(
+            @PathVariable
+            Long id,
+
+            @Valid
+            @RequestBody
+            EncuestadorRequest request
+    ) {
+        return ApiResponse.ok(
+                "Encuestador actualizado correctamente",
+                service.update(
+                        id,
+                        request
+                )
+        );
     }
 
-    @PreAuthorize(AppRolePreAuthorize.CATALOG_WRITE)
+    @PreAuthorize(
+            AppRolePreAuthorize.CATALOG_WRITE
+    )
     @PatchMapping("/{id}/activate")
-    public ApiResponse<EncuestadorResponse> activate(@PathVariable Long id) {
-        return ApiResponse.ok("Encuestador activado correctamente", service.setActive(id, true));
+    public ApiResponse<EncuestadorResponse>
+    activate(
+            @PathVariable
+            Long id
+    ) {
+        return ApiResponse.ok(
+                "Encuestador activado correctamente",
+                service.setActive(
+                        id,
+                        true
+                )
+        );
     }
 
-    @PreAuthorize(AppRolePreAuthorize.CATALOG_WRITE)
+    @PreAuthorize(
+            AppRolePreAuthorize.CATALOG_WRITE
+    )
     @PatchMapping("/{id}/deactivate")
-    public ApiResponse<EncuestadorResponse> deactivate(@PathVariable Long id) {
-        return ApiResponse.ok("Encuestador inactivado correctamente", service.setActive(id, false));
+    public ApiResponse<EncuestadorResponse>
+    deactivate(
+            @PathVariable
+            Long id
+    ) {
+        return ApiResponse.ok(
+                "Encuestador inactivado correctamente",
+                service.setActive(
+                        id,
+                        false
+                )
+        );
     }
 }
